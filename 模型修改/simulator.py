@@ -241,11 +241,11 @@ class Airview():
                 user.avg_thp = reward
             else:
                 user.avg_thp = user.avg_thp*(1-FORGETTING_FACTOR)+FORGETTING_FACTOR*reward
-            # user.avg_thp = user.sum_reward / ((self.sim_time - user.arr_time) * 1000 + 1)
+            total_avg_thp = user.sum_reward / ((self.sim_time - user.arr_time) * 1000 + 1)
             self.select_user_list[i] = user
 
             if user.buffer == 0 and user.ID > 0:    #if user.buffer == 0
-                self.system_log.append([user.arr_time, self.sim_time, user.sum_reward, user.avg_thp])
+                self.system_log.append([user.arr_time, self.sim_time, user.sum_reward, total_avg_thp])
 
             system_reward += reward
             mcs_reward_list.append(reward / user.sched_rbg.sum())
