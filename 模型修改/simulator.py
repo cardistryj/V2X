@@ -20,7 +20,7 @@ EPISODE_TTI = 10.0                      #一个episode即10s
 #噪音
 FREQUENCY = 2e9 
 LIGHT_SPEED = 3e8
-FORGETTING_FACTOR = 0.9                 #EMF算法的遗忘因子
+WINDOWING_FACTOR = 17                   #EMF算法的遗忘因子
 
 
 class User:
@@ -47,6 +47,7 @@ class User:
         self.rsrp = rsrp
         self.avg_snr = self.rsrp + 121
         self.avg_thp = 0
+        self.avg_thp_list=[]
         self.cqi = np.full(RBG_NUM, np.nan)
         self.mcs = np.full(RBG_NUM, np.nan)
         self.se = np.full(RBG_NUM, np.nan)
@@ -237,10 +238,19 @@ class Airview():
 
             reward = rbg_tbs * is_succ
             user.sum_reward += reward
-            if user.avg_thp == 0:
-                user.avg_thp = reward
-            else:
-                user.avg_thp = user.avg_thp*(1-FORGETTING_FACTOR)+FORGETTING_FACTOR*reward
+
+            #calculate throughput according to MMF
+            factor=max(1,int(WINDOWING_FACTOR*self.get_num_active_users()/len(self.user_list)))
+            cur_thp_list=user.avg_thp_list[-factor:]
+            count_fill=max(0,factor-len(cur_thp_list))
+            for j in range(count_fill):
+                cur_thp_list.append(reward)
+            sum_thp=0
+            for thp in cur_thp_list:
+                sum_thp+=thp
+            user.avg_thp=sum_thp/len(cur_thp_list)
+            user.avg_thp_list.append(user.avg_thp)
+
             total_avg_thp = user.sum_reward / ((self.sim_time - user.arr_time) * 1000 + 1)
             self.select_user_list[i] = user
 
@@ -268,10 +278,7 @@ class Airview():
                 reward += single_reward
             reward = reward / float(num_active_user)
         return reward
-
-    def del_empty_user(self):
-        self.user_list = list(filter(lambda x: x.buffer > 0, self.user_list))
-
+    
     '''get the number of active users and scheduled users'''
 
     def get_num_active_users(self):
@@ -280,6 +287,9 @@ class Airview():
             if user.ID != -1:
                 num += 1
         return num
+
+    def del_empty_user(self):
+        self.user_list = list(filter(lambda x: x.buffer > 0, self.user_list))
 
     '''after take rb action, the algorithm run step'''
 
