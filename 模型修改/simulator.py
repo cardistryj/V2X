@@ -20,7 +20,7 @@ EPISODE_TTI = 10.0                      #一个episode即10s
 #噪音
 FREQUENCY = 2e9 
 LIGHT_SPEED = 3e8
-WINDOWING_FACTOR = 17                   #EMF算法的遗忘因子
+WINDOWING_FACTOR = 34                   #EMF算法的遗忘因子
 
 
 class User:
