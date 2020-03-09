@@ -20,7 +20,7 @@ EPISODE_TTI = 10.0                      #一个episode即10s
 #噪音
 FREQUENCY = 2e9 
 LIGHT_SPEED = 3e8
-FORGETTING_FACTOR = 0.9                 #EMF算法的遗忘因子
+FORGETTING_FACTOR = 0.8                 #EMF算法的遗忘因子
 
 
 class User:
@@ -237,11 +237,11 @@ class Airview():
 
             reward = rbg_tbs * is_succ
             user.sum_reward += reward
-            # if user.avg_thp == 0:
-            #     user.avg_thp = reward
-            # else:
-            #     user.avg_thp = user.avg_thp*(1-FORGETTING_FACTOR)+FORGETTING_FACTOR*reward
-            user.avg_thp = user.sum_reward / ((self.sim_time - user.arr_time) * 1000 + 1)
+            if user.avg_thp == 0:
+                user.avg_thp = reward
+            else:
+                user.avg_thp = user.avg_thp*(1-FORGETTING_FACTOR)+FORGETTING_FACTOR*reward
+            #user.avg_thp = user.sum_reward / ((self.sim_time - user.arr_time) * 1000 + 1)
             self.select_user_list[i] = user
 
             if user.buffer == 0 and user.ID > 0:    #if user.buffer == 0

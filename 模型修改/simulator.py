@@ -20,7 +20,7 @@ EPISODE_TTI = 10.0                      #一个episode即10s
 #噪音
 FREQUENCY = 2e9 
 LIGHT_SPEED = 3e8
-WINDOWING_FACTOR = 34                   #EMF算法的遗忘因子
+WINDOWING_FACTOR = 7                   #EMF算法的遗忘因子
 
 
 class User:
@@ -240,7 +240,8 @@ class Airview():
             user.sum_reward += reward
 
             #calculate throughput according to MMF
-            factor=max(1,int(WINDOWING_FACTOR*self.get_num_active_users()/len(self.user_list)))
+            #factor=max(1,int(WINDOWING_FACTOR*self.get_num_active_users()/len(self.user_list)))
+            factor=WINDOWING_FACTOR
             cur_thp_list=user.avg_thp_list[-factor:]
             count_fill=max(0,factor-len(cur_thp_list))
             for j in range(count_fill):
