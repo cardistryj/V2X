@@ -5,6 +5,9 @@ MAP_WEIGHT = 2000 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
 TIMESLICE = 0.1 # 一个step的时间片长度(s)
 
+def sigmoid(x):
+    return 1/(1+np.exp(-x))
+
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
 
@@ -44,7 +47,7 @@ VEHICLE_NUM = 50
 VELOCITY_RANGE = [10, 20] # 车辆速度(m/s)
 VEHICLE_X_RANGE = [200, 1800] # 车辆x坐标范围(m)
 VEHICLE_Y_SPACE = [ MAP_HEIGHT//2 - ROAD_WIDTH + 0.5*LANE_WIDTH + LANE_WIDTH*i for i in range(2*LANE_NUM) ] # 车辆y坐标候选(m) ### 这里设置为 双向四车道
-VEHICLE_CAP_RANGE = [10,20] # 车辆本地计算能力(GHz)
+VEHICLE_CAP_RANGE = [1,5] # 车辆本地计算能力(GHz)
 VEHICLE_BAND = 30 # 车辆之间带宽(MB)
 VEHICLE_COMM_DIST = 30 # 车辆之间可通信距离(m)
 
@@ -53,6 +56,7 @@ class Vehicle:
         self.reset()
     
     def reset(self):
+        self.idle = True
         self.clear_task()
         self.gen_task()
         line = np.random.choice(2*LANE_NUM)
@@ -74,10 +78,24 @@ class Vehicle:
         self.comp_req = 0
         self.ddl = 0
         self.tran_req = 0
+        self.task_fin_time = math.inf
     
     def if_task(self):
         return self.has_task
     
+    def mount_task(self, fin_time):
+        self.task_fin_time = fin_time
+    
+    # def if_idle(self):
+    #     return self.idle
+    
+    def serve_task(self, fin_time):
+        '''
+        当前车辆作为服务器，计算其他任务
+        '''
+        self.idle = False
+        self.serve_fin_time = fin_time
+
     def get_task_req(self):
         return (self.comp_req, self.tran_req)
     
@@ -91,11 +109,18 @@ class Vehicle:
         return (self.velocity_x, self.velocity_y)
     
     def get_cap(self):
-        return self.comp_cap
+        return self.comp_cap if self.idle else 0
 
-    def step(self):
-        self.gen_task()
+    def step(self, sys_time):
         self.x += self.velocity_x * TIMESLICE
+        if sys_time > self.task_fin_time:
+            self.clear_task()
+        if sys_time > self.serve_fin_time:
+            # 释放车辆资源
+            self.idle = True
+            self.serve_fin_time = math.inf
+        if not self.has_task:
+            self.gen_task()
     
     def calc_commtime(self, targ_vehi):
         '''
@@ -125,6 +150,8 @@ MES_BAND = 10 # MES带宽(MB)
 MES_LOC_X = [200,1800]
 MES_LOC_Y = [1000, 0]
 
+CLOUD_MULTIPLIER = 0.15 # 云计算完成时间乘数
+
 class Station:
     def __init__(self, cap, band, x, y, radius):
         self.cur_cap = cap
@@ -132,15 +159,31 @@ class Station:
         self.x = x
         self.y = y
         self.radius = radius
+        self.cur_tasks = []
     
     def reset(self, cur_cap, cur_band):
         self.cur_cap = cur_cap
         self.cur_band = cur_band
     
-    def alloc(self, cap_ratio, band_ratio):
-        self.cur_cap -= self.cur_cap*cap_ratio
-        self.cur_band -= self.cur_band*band_ratio
+    def get_cur_state(self):
+        return self.cur_band, self.cur_cap
     
+    def serve_task(self, cap_ratio, band_ratio, fin_time):
+        cap_req = self.cur_cap*cap_ratio
+        band_req = self.cur_band*band_ratio
+        self.cur_tasks.append(cap_req, band_req, fin_time)
+        self.cur_cap -= cap_req
+        self.cur_band -= band_req
+    
+    def step(self, sys_time):
+        # 倒序遍历删除
+        for idx in range(len(self.cur_tasks) - 1, -1, -1):
+            (cap_occupied, band_occupied, fin_time) = self.cur_tasks[idx]
+            if sys_time > fin_time:
+                self.cur_cap += cap_occupied
+                self.cur_band += band_occupied
+                self.cur_tasks.pop(idx)
+
     def calc_commtime(self, targ_vehi):
         '''
         targ_vehi: Vehicle
@@ -153,9 +196,11 @@ class C_V2X:
         self.RESs = [Station(RES_CAP, RES_BAND, x, y, RES_RADIUS) for x,y in zip(RES_LOC_X, RES_LOC_Y)]
         self.MESs = [Station(MES_CAP, MES_BAND, x, y, MES_RADIUS) for x,y in zip(MES_LOC_X, MES_LOC_Y)]
         self.vehicles = [Vehicle() for _ in range(VEHICLE_NUM)]
+        self.time = 0
 
     # 重置环境
     def reset(self):
+        self.time = 0
         for vehi in self.vehicles:
             vehi.reset()
         for res in self.RESs:
@@ -194,8 +239,7 @@ class C_V2X:
                 commtime = res.calc_commtime(vehi)
                 if commtime > 0:
                     res_mat[idx1, idx2*3] = min(commtime, ddl)
-                    res_mat[idx1, idx2*3 + 1] = res.cur_band
-                    res_mat[idx1, idx2*3 + 2] = res.cur_cap
+                    res_mat[idx1, idx2*3 + 1:(idx2+1)*3] = res.get_cur_state()
         return res_mat
     
     def calc_mes_mat(self):
@@ -208,8 +252,7 @@ class C_V2X:
                 commtime = mes.calc_commtime(vehi)
                 if commtime > 0:
                     mes_mat[idx1, idx2*3] = min(commtime, ddl)
-                    mes_mat[idx1, idx2*3 + 1] = mes.cur_band
-                    mes_mat[idx1, idx2*3 + 2] = mes.cur_cap
+                    mes_mat[idx1, idx2*3 + 1:(idx2+1)*3] = mes.get_cur_state()
         return mes_mat
     
     def get_state(self):
@@ -218,17 +261,66 @@ class C_V2X:
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
         return np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1)
+    
+    def step(self):
+        self.time += TIMESLICE
+        for vehi in self.vehicles:
+            vehi.step(self.time)
+        for res in self.RESs:
+            res.step(self.time)
+        for mes in self.MESs:
+            mes.step(self.time)
 
-    def reward(self, theta, theta_dot, u):
-        pass
-
-    def step(self, action):
+    def take_action(self, actions):
         '''
-        action: 决策矩阵 VEHICLE_NUM * k ;k = VEHICLE_NUM+RES_NUM+MES_NUM+1
+        actions: 决策矩阵 VEHICLE_NUM * k ;k = VEHICLE_NUM+RES_NUM+MES_NUM+1
             [, 0:k+1]: 决策位
-            [, k+1:k+3]: RES资源分配决策 band + cap
-            [, k+3:k+5]: MES资源分配决策 band + cap
+            [, k+1:k+3]: RES资源分配决策 band ratio, cap ratio
+            [, k+3:k+5]: MES资源分配决策 band ratio, cap ratio
+        output: 奖励
         '''
+        k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
+        sum_reward = 0
+        for vehi, action in zip(self.vehicles, actions):
+            if not vehi.if_task():
+                continue
+            ddl = vehi.get_task_ddl()
+            comp_req, tran_req = vehi.get_task_req()
+            raw_idx = np.argmax(action[:k+1])
+            if raw_idx < VEHICLE_NUM:
+                server_idx = raw_idx
+                server = self.vehicles[server_idx]
+                total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
+                if total_time < ddl:
+                    # 当前此任务分配成功
+                    vehi.mount_task(self.time+total_time)
+                    server.serve_task(self.time+total_time)
+            elif raw_idx < VEHICLE_NUM + RES_NUM:
+                server_idx = raw_idx - VEHICLE_NUM
+                server = self.RESs[server_idx]
+                (band_ratio, cap_ratio) = action[k+1:k+3]
+                (cur_band, cur_cap) = server.get_cur_state()
+                total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
+                if total_time < ddl:
+                    # 当前任务分配成功
+                    vehi.mount_task(self.time+total_time)
+                    server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+            elif raw_idx < k:
+                server_idx = raw_idx - VEHICLE_NUM - RES_NUM
+                server = self.MESs[server_idx]
+                (band_ratio, cap_ratio) = action[k+3:k+5]
+                (cur_band, cur_cap) = server.get_cur_state()
+                total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
+                if total_time < ddl:
+                    # 当前任务分配成功
+                    vehi.mount_task(self.time+total_time)
+                    server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+            else:
+                total_time = tran_req * CLOUD_MULTIPLIER
+                if total_time < ddl:
+                    # 当前任务分配成功
+                    vehi.mount_task(self.time+total_time)
 
+            sum_reward += math.log(ddl/total_time + 0.00095)
         
-
+        return sum_reward
