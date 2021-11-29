@@ -294,7 +294,7 @@ class C_V2X:
         reward_list = []
         fintime_list = []
         ddl_list = []
-        for vehi, action in zip(self.vehicles, actions):
+        for idx, (vehi, action) in enumerate(zip(self.vehicles, actions)):
             if not vehi.if_task():
                 continue
             ddl = vehi.get_task_ddl()
@@ -307,7 +307,8 @@ class C_V2X:
                     total_time = math.inf
                 else:
                     total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
-                if total_time < ddl:
+                commtime = math.inf if server_idx == idx else server.calc_commtime(vehi)
+                if total_time < ddl and total_time < commtime:
                     # 当前此任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(self.time+total_time)
@@ -317,7 +318,8 @@ class C_V2X:
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k:k+2]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
-                if total_time < ddl:
+                commtime = server.calc_commtime(vehi)
+                if total_time < ddl and total_time < commtime:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
@@ -327,7 +329,8 @@ class C_V2X:
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k+2:k+4]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
-                if total_time < ddl:
+                commtime = server.calc_commtime(vehi)
+                if total_time < ddl and total_time < commtime:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)

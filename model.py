@@ -1,5 +1,5 @@
-from ddpg import DDPG
-from V2X_Env import C_V2X
+# from ddpg import DDPG
+from V2X_Env import C_V2X, get_random_from
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -12,10 +12,10 @@ HIDDEN_DIM = 4096
 
 def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
     env = C_V2X(episode_ts)
-    state_dim = env.get_state_dim()
+    # state_dim = env.get_state_dim()
     action_dim = env.get_action_dim()
 
-    ddpg = DDPG(env, state_dim, action_dim, HIDDEN_DIM)
+    # ddpg = DDPG(env, state_dim, action_dim, HIDDEN_DIM)
 
     reward_list = []
 
@@ -29,16 +29,18 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
 
         while not done:
             state = env.get_state() if steps == 0 else next_state
-            action = ddpg.policy_net.get_action(state)
+            # action = ddpg.policy_net.get_action(state)
+            action = get_random_from(-1, 1, (action_dim,))
+
             reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
             next_state = env.get_state()
             done = env.get_done()
 
-            ddpg.replay_buffer.push(state, action, reward, next_state, done)
+            # ddpg.replay_buffer.push(state, action, reward, next_state, done)
 
-            if len(ddpg.replay_buffer) > batch_size:
-                ddpg.ddpg_update(batch_size)
+            # if len(ddpg.replay_buffer) > batch_size:
+            #     ddpg.ddpg_update(batch_size)
 
             episode_reward += reward
             episode_task_count += len(srl)
