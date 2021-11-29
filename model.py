@@ -23,13 +23,14 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
         done = False
         env.reset()
         episode_reward = 0
-        episode_suc = 0
+        episode_suc_count = 0
+        episode_task_count = 0
         steps = 0
 
         while not done:
             state = env.get_state()
             action = ddpg.policy_net.get_action(state)
-            reward, (srl, success_ratio, fintime_list, ddl_list) = env.take_action(action)
+            reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
             next_state = env.get_state()
             done = env.get_done()
@@ -40,7 +41,8 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
                 ddpg.ddpg_update(batch_size)
 
             episode_reward += reward
-            episode_suc += success_ratio
+            episode_task_count += len(srl)
+            episode_suc_count += success_num
 
             # print('step {}, reward {:.2f}'.format(steps, reward))
 
@@ -49,7 +51,7 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
             # if steps % 100 == 0:
             # pdb.set_trace()
 
-        print('Episode {}, accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio'.format(episode, episode_reward, episode_reward/steps, episode_suc/steps))
+        print('Episode {}, accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio {:.2f}'.format(episode, episode_reward, episode_reward/steps, episode_suc_count/episode_task_count))
         reward_list.append(episode_reward)
     
     torch.save(ddpg.policy_net, 'ddpg_policy_net.pth')

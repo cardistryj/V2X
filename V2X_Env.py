@@ -342,7 +342,7 @@ class C_V2X:
             ddl_list.append(ddl)
         
         # pdb.set_trace()
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list)))/len(reward_list), fintime_list, ddl_list)
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), fintime_list, ddl_list)
     
     def step(self):
         self.time += TIMESLICE
