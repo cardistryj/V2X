@@ -1,11 +1,13 @@
-# import datetime
-import numpy as np
+import datetime
 import random
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+import matplotlib.pyplot as plt
+from simulator import *
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")

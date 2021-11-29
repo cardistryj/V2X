@@ -1,7 +1,8 @@
 import numpy as np
 import math
+import pdb
 
-MAP_WEIGHT = 2000 # 场景宽度(m)
+MAP_WIDTH = 2000 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
 TIMESLICE = 0.1 # 一个step的时间片长度(s)
 
@@ -57,6 +58,7 @@ class Vehicle:
     
     def reset(self):
         self.idle = True
+        self.serve_fin_time = math.inf
         self.clear_task()
         self.gen_task()
         line = np.random.choice(2*LANE_NUM)
@@ -78,16 +80,18 @@ class Vehicle:
         self.comp_req = 0
         self.ddl = 0
         self.tran_req = 0
+        self.mounted = False
         self.task_fin_time = math.inf
     
     def if_task(self):
-        return self.has_task
+        return self.has_task and not self.mounted
     
     def mount_task(self, fin_time):
+        self.mounted = True
         self.task_fin_time = fin_time
     
-    # def if_idle(self):
-    #     return self.idle
+    def if_idle(self):
+        return self.idle
     
     def serve_task(self, fin_time):
         '''
@@ -121,6 +125,7 @@ class Vehicle:
             self.serve_fin_time = math.inf
         if not self.has_task:
             self.gen_task()
+        return self.x > MAP_WIDTH or self.x < 0
     
     def calc_commtime(self, targ_vehi):
         '''
@@ -171,7 +176,7 @@ class Station:
     def serve_task(self, cap_ratio, band_ratio, fin_time):
         cap_req = self.cur_cap*cap_ratio
         band_req = self.cur_band*band_ratio
-        self.cur_tasks.append(cap_req, band_req, fin_time)
+        self.cur_tasks.append((cap_req, band_req, fin_time))
         self.cur_cap -= cap_req
         self.cur_band -= band_req
     
@@ -191,16 +196,19 @@ class Station:
         return calc_commtime(self.x, self.y, self.radius, *(targ_vehi.get_position()), *(targ_vehi.get_velocity()))
 
 class C_V2X:
-    def __init__(self):
+    def __init__(self, episode_max_ts):
         # 初始化状态
         self.RESs = [Station(RES_CAP, RES_BAND, x, y, RES_RADIUS) for x,y in zip(RES_LOC_X, RES_LOC_Y)]
         self.MESs = [Station(MES_CAP, MES_BAND, x, y, MES_RADIUS) for x,y in zip(MES_LOC_X, MES_LOC_Y)]
         self.vehicles = [Vehicle() for _ in range(VEHICLE_NUM)]
         self.time = 0
+        self.done = False
+        self.episode_max_ts = episode_max_ts
 
     # 重置环境
     def reset(self):
         self.time = 0
+        self.done = False
         for vehi in self.vehicles:
             vehi.reset()
         for res in self.RESs:
@@ -255,42 +263,49 @@ class C_V2X:
                     mes_mat[idx1, idx2*3 + 1:(idx2+1)*3] = mes.get_cur_state()
         return mes_mat
     
+    def get_done(self):
+        return self.done
+    
     def get_state(self):
         task_mat = np.array([vehi.get_task_req() for vehi in self.vehicles])
         vehi_mat = self.calc_vehi_mat()
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
-        return np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1)
+        return np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1).reshape(-1)
     
-    def step(self):
-        self.time += TIMESLICE
-        for vehi in self.vehicles:
-            vehi.step(self.time)
-        for res in self.RESs:
-            res.step(self.time)
-        for mes in self.MESs:
-            mes.step(self.time)
+    def get_state_dim(self):
+        return VEHICLE_NUM * (2 + 2*VEHICLE_NUM + 3*RES_NUM + 3*MES_NUM)
+    
+    def get_action_dim(self):
+        return VEHICLE_NUM * (VEHICLE_NUM+RES_NUM+MES_NUM+1+4)
 
     def take_action(self, actions):
         '''
         actions: 决策矩阵 VEHICLE_NUM * k ;k = VEHICLE_NUM+RES_NUM+MES_NUM+1
-            [, 0:k+1]: 决策位
-            [, k+1:k+3]: RES资源分配决策 band ratio, cap ratio
-            [, k+3:k+5]: MES资源分配决策 band ratio, cap ratio
+            [, 0:k]: 决策位
+            [, k:k+2]: RES资源分配决策 band ratio, cap ratio
+            [, k+2:k+4]: MES资源分配决策 band ratio, cap ratio
         output: 奖励
         '''
+        actions = actions.reshape(VEHICLE_NUM, -1)
+
         k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
-        sum_reward = 0
+        reward_list = []
+        fintime_list = []
+        ddl_list = []
         for vehi, action in zip(self.vehicles, actions):
             if not vehi.if_task():
                 continue
             ddl = vehi.get_task_ddl()
             comp_req, tran_req = vehi.get_task_req()
-            raw_idx = np.argmax(action[:k+1])
+            raw_idx = np.argmax(action[:k])
             if raw_idx < VEHICLE_NUM:
                 server_idx = raw_idx
                 server = self.vehicles[server_idx]
-                total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
+                if not server.if_idle():
+                    total_time = math.inf
+                else:
+                    total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
                 if total_time < ddl:
                     # 当前此任务分配成功
                     vehi.mount_task(self.time+total_time)
@@ -298,17 +313,17 @@ class C_V2X:
             elif raw_idx < VEHICLE_NUM + RES_NUM:
                 server_idx = raw_idx - VEHICLE_NUM
                 server = self.RESs[server_idx]
-                (band_ratio, cap_ratio) = action[k+1:k+3]
+                (band_ratio, cap_ratio) = list(map(sigmoid, action[k:k+2]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
                 if total_time < ddl:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
-            elif raw_idx < k:
+            elif raw_idx < k-1:
                 server_idx = raw_idx - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
-                (band_ratio, cap_ratio) = action[k+3:k+5]
+                (band_ratio, cap_ratio) = list(map(sigmoid, action[k+2:k+4]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
                 if total_time < ddl:
@@ -321,6 +336,22 @@ class C_V2X:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
 
-            sum_reward += math.log(ddl/total_time + 0.00095)
+            reward_list.append(math.log(ddl/total_time + 0.00095))
+
+            fintime_list.append(total_time)
+            ddl_list.append(ddl)
         
-        return sum_reward
+        # pdb.set_trace()
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list)))/len(reward_list), fintime_list, ddl_list)
+    
+    def step(self):
+        self.time += TIMESLICE
+        if self.time >= self.episode_max_ts:
+            self.done = True
+        for vehi in self.vehicles:
+            if vehi.step(self.time):
+                self.done = True
+        for res in self.RESs:
+            res.step(self.time)
+        for mes in self.MESs:
+            mes.step(self.time)
