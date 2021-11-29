@@ -270,7 +270,7 @@ class C_V2X:
         return self.done
     
     def comp_state(self):
-        task_mat = np.array([vehi.get_task_req() for vehi in self.vehicles])
+        task_mat = np.array([(vehi.get_task_req() if vehi.if_task() else (0, 0)) for vehi in self.vehicles])
         vehi_mat = self.calc_vehi_mat()
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
@@ -373,8 +373,8 @@ class C_V2X:
 
             reward_list.append(math.log(ddl/total_time + 0.00095))
 
-            commtime_list.append(comm_time)
-            comptime_list.append(comp_time)
+            # commtime_list.append(comm_time)
+            # comptime_list.append(comp_time)
             ddl_list.append(ddl)
         
         # pdb.set_trace()
