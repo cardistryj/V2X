@@ -204,6 +204,7 @@ class C_V2X:
         self.vehicles = [Vehicle() for _ in range(VEHICLE_NUM)]
         self.time = 0
         self.done = False
+        self.comp_state()
         self.episode_max_ts = episode_max_ts
 
     # 重置环境
@@ -216,6 +217,7 @@ class C_V2X:
             res.reset(RES_CAP, RES_BAND)
         for mes in self.MESs:
             mes.reset(MES_CAP, MES_BAND)
+        self.comp_state()
     
     # 后续可考虑
     # 1. 时间、带宽 和 计算能力 为三个通道
@@ -267,12 +269,15 @@ class C_V2X:
     def get_done(self):
         return self.done
     
-    def get_state(self):
+    def comp_state(self):
         task_mat = np.array([vehi.get_task_req() for vehi in self.vehicles])
         vehi_mat = self.calc_vehi_mat()
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
-        return np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1).reshape(-1)
+        self.state = np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1)
+    
+    def get_state(self):
+        return self.state.reshape(-1)
     
     def get_state_dim(self):
         return VEHICLE_NUM * (2 + 2*VEHICLE_NUM + 3*RES_NUM + 3*MES_NUM)
@@ -286,8 +291,10 @@ class C_V2X:
             [, 0:k]: 决策位
             [, k:k+2]: RES资源分配决策 band ratio, cap ratio
             [, k+2:k+4]: MES资源分配决策 band ratio, cap ratio
+        state: 当前状态
         output: 奖励
         '''
+        state = self.state
         actions = actions.reshape(VEHICLE_NUM, -1)
 
         k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
@@ -307,8 +314,13 @@ class C_V2X:
                     total_time = math.inf
                 else:
                     total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
-                commtime = math.inf if server_idx == idx else server.calc_commtime(vehi)
-                if total_time < ddl and total_time < commtime:
+                
+                ####################
+                # commtime = math.inf if server_idx == idx else server.calc_commtime(vehi)
+                constrain_time = state[idx, 2 + server_idx]
+                ####################
+                
+                if total_time < constrain_time:
                     # 当前此任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(self.time+total_time)
@@ -318,8 +330,12 @@ class C_V2X:
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k:k+2]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
-                commtime = server.calc_commtime(vehi)
-                if total_time < ddl and total_time < commtime:
+
+                ####################
+                constrain_time = state[idx, 2 + 2*VEHICLE_NUM + server_idx * 3]
+                ####################
+
+                if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
@@ -329,8 +345,12 @@ class C_V2X:
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k+2:k+4]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
-                commtime = server.calc_commtime(vehi)
-                if total_time < ddl and total_time < commtime:
+
+                ####################
+                constrain_time = state[idx, 2 + 2*VEHICLE_NUM + 3*RES_NUM + server_idx*3]
+                ####################
+
+                if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
@@ -359,3 +379,4 @@ class C_V2X:
             res.step(self.time)
         for mes in self.MESs:
             mes.step(self.time)
+        self.comp_state()
