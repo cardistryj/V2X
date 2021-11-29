@@ -28,7 +28,7 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
         steps = 0
 
         while not done:
-            state = env.get_state() if steps == 0 else next_state
+            state = env.get_state()
             action = ddpg.policy_net.get_action(state)
             reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
