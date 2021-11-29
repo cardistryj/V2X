@@ -6,8 +6,9 @@ MAP_WIDTH = 2000 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
 TIMESLICE = 0.1 # 一个step的时间片长度(s)
 
-def sigmoid(x):
-    return 1/(1+np.exp(-x))
+def tanh_to_01(x):
+    # 将神经网络输出 tanh 映射至 [0, 1] 区间
+    return (x+1)/2
 
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
@@ -313,7 +314,7 @@ class C_V2X:
             elif raw_idx < VEHICLE_NUM + RES_NUM:
                 server_idx = raw_idx - VEHICLE_NUM
                 server = self.RESs[server_idx]
-                (band_ratio, cap_ratio) = list(map(sigmoid, action[k:k+2]))
+                (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k:k+2]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
                 if total_time < ddl:
@@ -323,7 +324,7 @@ class C_V2X:
             elif raw_idx < k-1:
                 server_idx = raw_idx - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
-                (band_ratio, cap_ratio) = list(map(sigmoid, action[k+2:k+4]))
+                (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k+2:k+4]))
                 (cur_band, cur_cap) = server.get_cur_state()
                 total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
                 if total_time < ddl:
