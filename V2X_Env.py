@@ -299,7 +299,8 @@ class C_V2X:
 
         k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
         reward_list = []
-        fintime_list = []
+        commtime_list = []
+        comptime_list = []
         ddl_list = []
         for idx, (vehi, action) in enumerate(zip(self.vehicles, actions)):
             if not vehi.if_task():
@@ -312,8 +313,12 @@ class C_V2X:
                 server = self.vehicles[server_idx]
                 if not server.if_idle():
                     total_time = math.inf
+                    comm_time = math.inf
+                    comp_time = math.inf
                 else:
-                    total_time = tran_req/VEHICLE_BAND + comp_req/server.get_cap()*1e-3
+                    comm_time = tran_req/VEHICLE_BAND
+                    comp_time = comp_req/server.get_cap()*1e-3
+                    total_time = comm_time + comp_time
                 
                 ####################
                 # commtime = math.inf if server_idx == idx else server.calc_commtime(vehi)
@@ -329,7 +334,10 @@ class C_V2X:
                 server = self.RESs[server_idx]
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k:k+2]))
                 (cur_band, cur_cap) = server.get_cur_state()
-                total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
+
+                comm_time = tran_req/(cur_band*band_ratio)
+                comp_time = comp_req/(cur_cap*cap_ratio)*1e-3
+                total_time = comm_time + comp_time
 
                 ####################
                 constrain_time = state[idx, 2 + 2*VEHICLE_NUM + server_idx * 3]
@@ -344,7 +352,10 @@ class C_V2X:
                 server = self.MESs[server_idx]
                 (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k+2:k+4]))
                 (cur_band, cur_cap) = server.get_cur_state()
-                total_time = tran_req/(cur_band*band_ratio) + comp_req/(cur_cap*cap_ratio)*1e-3
+
+                comm_time = tran_req/(cur_band*band_ratio)
+                comp_time = comp_req/(cur_cap*cap_ratio)*1e-3
+                total_time = comm_time + comp_time
 
                 ####################
                 constrain_time = state[idx, 2 + 2*VEHICLE_NUM + 3*RES_NUM + server_idx*3]
@@ -362,11 +373,12 @@ class C_V2X:
 
             reward_list.append(math.log(ddl/total_time + 0.00095))
 
-            fintime_list.append(total_time)
+            commtime_list.append(comm_time)
+            comptime_list.append(comp_time)
             ddl_list.append(ddl)
         
         # pdb.set_trace()
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), fintime_list, ddl_list)
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), commtime_list, comptime_list, ddl_list)
     
     def step(self):
         self.time += TIMESLICE
