@@ -51,7 +51,7 @@ VEHICLE_X_RANGE = [200, 1800] # 车辆x坐标范围(m)
 VEHICLE_Y_SPACE = [ MAP_HEIGHT//2 - ROAD_WIDTH + 0.5*LANE_WIDTH + LANE_WIDTH*i for i in range(2*LANE_NUM) ] # 车辆y坐标候选(m) ### 这里设置为 双向四车道
 VEHICLE_CAP_RANGE = [1,5] # 车辆本地计算能力(GHz)
 VEHICLE_BAND = 30 # 车辆之间带宽(MB)
-VEHICLE_COMM_DIST = 30 # 车辆之间可通信距离(m)
+VEHICLE_COMM_DIST = 50 # 车辆之间可通信距离(m)
 
 class Vehicle:
     def __init__(self):
@@ -298,10 +298,19 @@ class C_V2X:
         actions = actions.reshape(VEHICLE_NUM, -1)
 
         k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
+
         reward_list = []
-        commtime_list = []
-        comptime_list = []
+        
+        ###############
+        # for debugging
+        ###############
+        task_idx_list = []
         ddl_list = []
+        vehi_fintime = []
+        RES_fintime = []
+        MES_fintime = []
+        cloud_fintime = []
+
         for idx, (vehi, action) in enumerate(zip(self.vehicles, actions)):
             if not vehi.if_task():
                 continue
@@ -329,6 +338,9 @@ class C_V2X:
                     # 当前此任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(self.time+total_time)
+                
+                vehi_fintime.append((idx,total_time))
+
             elif raw_idx < VEHICLE_NUM + RES_NUM:
                 server_idx = raw_idx - VEHICLE_NUM
                 server = self.RESs[server_idx]
@@ -347,6 +359,9 @@ class C_V2X:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+                
+                RES_fintime.append((idx,total_time))
+
             elif raw_idx < k-1:
                 server_idx = raw_idx - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
@@ -365,20 +380,24 @@ class C_V2X:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+
+                MES_fintime.append((idx,total_time))
+            
             else:
                 total_time = tran_req * CLOUD_MULTIPLIER
-                if total_time < ddl:
+                constrain_time = ddl
+                if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
+                
+                cloud_fintime.append((idx,total_time))
 
-            reward_list.append(math.log(ddl/total_time + 0.00095))
-
-            commtime_list.append(comm_time)
-            comptime_list.append(comp_time)
+            task_idx_list.append(idx)
+            reward_list.append(math.log(constrain_time/total_time + 0.00095))
             ddl_list.append(ddl)
         
         # pdb.set_trace()
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), commtime_list, comptime_list, ddl_list)
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), vehi_fintime, ddl_list)
     
     def step(self):
         self.time += TIMESLICE
