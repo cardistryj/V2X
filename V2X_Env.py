@@ -380,9 +380,12 @@ class C_V2X:
                 
                 cloud_fintime.append((idx,total_time))
 
-            task_idx_list.append(idx)
-            reward_list.append(1 if constrain_time/total_time > 1 else -10)
+            if_success = constrain_time/total_time > 1
+            if not if_success:
+                vehi.clear_task()
+            reward_list.append(1 if if_success else -10)
             constraintime_list.append(constrain_time)
+            task_idx_list.append(idx)
         
         # pdb.set_trace()
         return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), vehi_fintime, constraintime_list)
