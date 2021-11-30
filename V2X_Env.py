@@ -6,10 +6,6 @@ MAP_WIDTH = 1000 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
 TIMESLICE = 0.1 # 一个step的时间片长度(s)
 
-def tanh_to_01(x):
-    # 将神经网络输出 tanh 映射至 [0, 1] 区间
-    return (x+1)/2
-
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
 
@@ -282,17 +278,14 @@ class C_V2X:
     # refactor!!!
     def take_action(self, actions):
         '''
-        actions: 决策矩阵 VEHICLE_NUM * k ;k = VEHICLE_NUM+RES_NUM+MES_NUM+1
-            [, 0:k]: 决策位
-            [, k:k+2]: RES资源分配决策 band ratio, cap ratio
-            [, k+2:k+4]: MES资源分配决策 band ratio, cap ratio
+        actions:
+            [, 0]: 决策位
+            [, 1:3]: RES资源分配决策 band ratio, cap ratio
+            [, 3:5]: MES资源分配决策 band ratio, cap ratio
         state: 当前状态
         output: 奖励
         '''
         _, vehi_constraintime_mat, _, res_mat, mes_mat = self.state
-        actions = actions.reshape(VEHICLE_NUM, -1)
-
-        k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
 
         reward_list = []
         
@@ -311,7 +304,7 @@ class C_V2X:
                 continue
             ddl = vehi.get_task_ddl()
             comp_req, tran_req = vehi.get_task_req()
-            raw_idx = np.argmax(action[:k])
+            raw_idx = int(action[0])
             if raw_idx < VEHICLE_NUM:
                 server_idx = raw_idx
                 server = self.vehicles[server_idx]
@@ -339,7 +332,7 @@ class C_V2X:
             elif raw_idx < VEHICLE_NUM + RES_NUM:
                 server_idx = raw_idx - VEHICLE_NUM
                 server = self.RESs[server_idx]
-                (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k:k+2]))
+                (band_ratio, cap_ratio) = action[1:3]
                 (cur_band, cur_cap) = server.get_cur_state()
 
                 comm_time = tran_req/(cur_band*band_ratio)
@@ -357,10 +350,10 @@ class C_V2X:
                 
                 RES_fintime.append((idx,total_time))
 
-            elif raw_idx < k-1:
+            elif raw_idx < VEHICLE_NUM + RES_NUM + MES_NUM:
                 server_idx = raw_idx - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
-                (band_ratio, cap_ratio) = list(map(tanh_to_01, action[k+2:k+4]))
+                (band_ratio, cap_ratio) = action[3:5]
                 (cur_band, cur_cap) = server.get_cur_state()
 
                 comm_time = tran_req/(cur_band*band_ratio)
