@@ -28,12 +28,12 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
         steps = 0
 
         while not done:
-            state = env.get_state()
+            # state = env.get_state()
             action = get_random_from(-1, 1, (action_dim,))
 
             reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
-            next_state = env.get_state()
+            # next_state = env.get_state()
             done = env.get_done()
 
             # ddpg.replay_buffer.push(state, action, reward, next_state, done)
