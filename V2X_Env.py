@@ -223,7 +223,7 @@ class C_V2X:
     # 1. 时间、带宽 和 计算能力 为三个通道
     # 2. 减小可用车辆维度，选取k个最大
     def calc_vehi_mat(self):
-        vehi_commtime_mat = np.zeros((VEHICLE_NUM, VEHICLE_NUM))
+        vehi_constraintime_mat = np.zeros((VEHICLE_NUM, VEHICLE_NUM))
         vehi_cap_mat = np.zeros((VEHICLE_NUM, VEHICLE_NUM))
         for idx1, vehi1 in enumerate(self.vehicles):
             if not vehi1.if_task():
@@ -231,14 +231,14 @@ class C_V2X:
             for idx2, vehi2 in enumerate(self.vehicles):
                 ddl = vehi1.get_task_ddl()
                 if idx1 == idx2:
-                    vehi_commtime_mat[idx1, idx2] = ddl
+                    vehi_constraintime_mat[idx1, idx2] = ddl
                     vehi_cap_mat[idx1, idx2] = vehi2.get_cap()
                 else:
                     commtime = vehi1.calc_commtime(vehi2)
                     if commtime > 0:
-                        vehi_commtime_mat[idx1, idx2] = min(commtime, ddl)
+                        vehi_constraintime_mat[idx1, idx2] = min(commtime, ddl)
                         vehi_cap_mat[idx1, idx2] = vehi2.get_cap()
-        return np.concatenate((vehi_commtime_mat, vehi_cap_mat), axis=1)
+        return vehi_constraintime_mat, vehi_cap_mat
     
     def calc_res_mat(self):
         res_mat = np.zeros((VEHICLE_NUM, 3*RES_NUM))
@@ -266,25 +266,26 @@ class C_V2X:
                     mes_mat[idx1, idx2*3 + 1:(idx2+1)*3] = mes.get_cur_state()
         return mes_mat
     
+    def compress_vehi_mat(self):
+        pass
+    
     def get_done(self):
         return self.done
     
     def comp_state(self):
         task_mat = np.array([(vehi.get_task_req() if vehi.if_task() else (0, 0)) for vehi in self.vehicles])
-        vehi_mat = self.calc_vehi_mat()
+        vehi_constraintime_mat, vehi_cap_mat = self.calc_vehi_mat()
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
-        self.state = np.concatenate((task_mat, vehi_mat, res_mat, mes_mat), axis=1)
+        self.state = (task_mat, vehi_constraintime_mat, vehi_cap_mat, res_mat, mes_mat)
     
     def get_state(self):
-        return self.state.reshape(-1)
-    
-    def get_state_dim(self):
-        return VEHICLE_NUM * (2 + 2*VEHICLE_NUM + 3*RES_NUM + 3*MES_NUM)
+        return self.state
     
     def get_action_dim(self):
         return VEHICLE_NUM * (VEHICLE_NUM+RES_NUM+MES_NUM+1+4)
 
+    # refactor!!!
     def take_action(self, actions):
         '''
         actions: 决策矩阵 VEHICLE_NUM * k ;k = VEHICLE_NUM+RES_NUM+MES_NUM+1
@@ -294,7 +295,7 @@ class C_V2X:
         state: 当前状态
         output: 奖励
         '''
-        state = self.state
+        _, vehi_constraintime_mat, _, res_mat, mes_mat = self.state
         actions = actions.reshape(VEHICLE_NUM, -1)
 
         k = VEHICLE_NUM + RES_NUM + MES_NUM + 1
@@ -305,7 +306,7 @@ class C_V2X:
         # for debugging
         ###############
         task_idx_list = []
-        ddl_list = []
+        constraintime_list = []
         vehi_fintime = []
         RES_fintime = []
         MES_fintime = []
@@ -331,7 +332,7 @@ class C_V2X:
                 
                 ####################
                 # commtime = math.inf if server_idx == idx else server.calc_commtime(vehi)
-                constrain_time = state[idx, 2 + server_idx]
+                constrain_time = vehi_constraintime_mat[idx, server_idx]
                 ####################
                 
                 if total_time < constrain_time:
@@ -352,7 +353,7 @@ class C_V2X:
                 total_time = comm_time + comp_time
 
                 ####################
-                constrain_time = state[idx, 2 + 2*VEHICLE_NUM + server_idx * 3]
+                constrain_time = res_mat[idx, server_idx*3]
                 ####################
 
                 if total_time < constrain_time:
@@ -373,7 +374,7 @@ class C_V2X:
                 total_time = comm_time + comp_time
 
                 ####################
-                constrain_time = state[idx, 2 + 2*VEHICLE_NUM + 3*RES_NUM + server_idx*3]
+                constrain_time = mes_mat[idx, server_idx*3]
                 ####################
 
                 if total_time < constrain_time:
@@ -393,11 +394,11 @@ class C_V2X:
                 cloud_fintime.append((idx,total_time))
 
             task_idx_list.append(idx)
-            reward_list.append(math.log(constrain_time/total_time + 0.00095))
-            ddl_list.append(ddl)
+            reward_list.append(1 if constrain_time/total_time > 1 else -10)
+            constraintime_list.append(constrain_time)
         
         # pdb.set_trace()
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), vehi_fintime, ddl_list)
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), vehi_fintime, constraintime_list)
     
     def step(self):
         self.time += TIMESLICE
