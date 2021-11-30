@@ -1,19 +1,30 @@
 # from ddpg import DDPG
-from V2X_Env import C_V2X, get_random_from
+from V2X_Env import C_V2X, get_random_from, VEHICLE_NUM, RES_NUM, MES_NUM
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
-# import pdb
+import pdb
 
 EPISODE_NUM = 1000
 EPISODE_MAX_TS = 500
 BATCH_SIZE = 32
-HIDDEN_DIM = 4096
+HIDDEN_DIM = 1024
+DECISION_DIM = VEHICLE_NUM + RES_NUM + MES_NUM + 1
+ACTION_DIM = VEHICLE_NUM * (DECISION_DIM + 4)
+
+def tanh_to_01(x):
+    # 将神经网络输出 tanh 映射至 [0, 1] 区间
+    return (x+1)/2
+
+def convert_action(raw_actions):
+    actions = raw_actions.reshape((VEHICLE_NUM, -1))
+    decision = np.argmax(actions[:,:DECISION_DIM], axis=1).reshape(-1, 1)
+    ratio = tanh_to_01(actions[:,DECISION_DIM:])
+    return np.concatenate((decision, ratio), axis=1)
 
 def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
     env = C_V2X(episode_ts)
     # state_dim = env.get_state_dim()
-    action_dim = env.get_action_dim()
 
     # ddpg = DDPG(env, state_dim, action_dim, HIDDEN_DIM)
 
@@ -29,7 +40,7 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
 
         while not done:
             # state = env.get_state()
-            action = get_random_from(-1, 1, (action_dim,))
+            action = convert_action(get_random_from(-1, 1, (ACTION_DIM,)))
 
             reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
