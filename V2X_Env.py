@@ -266,9 +266,6 @@ class C_V2X:
                     mes_mat[idx1, idx2*3 + 1:(idx2+1)*3] = mes.get_cur_state()
         return mes_mat
     
-    def compress_vehi_mat(self):
-        pass
-    
     def get_done(self):
         return self.done
     
@@ -282,9 +279,6 @@ class C_V2X:
     def get_state(self):
         return self.state
     
-    def get_action_dim(self):
-        return VEHICLE_NUM * (VEHICLE_NUM+RES_NUM+MES_NUM+1+4)
-
     # refactor!!!
     def take_action(self, actions):
         '''
