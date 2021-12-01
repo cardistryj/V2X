@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import pdb
 
-EPISODE_NUM = 1000
+EPISODE_NUM = 1
 EPISODE_MAX_TS = 500
 BATCH_SIZE = 32
 HIDDEN_DIM = 4096
@@ -27,7 +27,7 @@ def convert_action(raw_actions):
     ratio = tanh_to_01(actions[:,DECISION_DIM:])
     return np.concatenate((decision, ratio), axis=1)
 
-def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
+def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
     env = C_V2X(episode_ts)
 
     ddpg = DDPG(env, STATE_DIM, ACTION_DIM, HIDDEN_DIM)
@@ -72,24 +72,33 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
         print('Episode {}, accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio {:.2f}'.format(episode, episode_reward, episode_reward/steps, episode_suc_count/episode_task_count))
         reward_list.append(episode_reward)
     
-    torch.save(ddpg.policy_net, 'ddpg_policy_net.pth')
+    torch.save(ddpg.policy_net, model_saving_path)
     return reward_list #, env.system_log
 
 
-def test(policy_net, episode_ts=EPISODE_MAX_TS):
+def test(policy_net_path, episode_ts=EPISODE_MAX_TS):
+    policy_net = torch.load(policy_net_path)
     env = C_V2X(episode_ts)
 
     done = False
     env.reset()
     episode_reward = 0
+    episode_suc_count = 0
+    episode_task_count = 0
+    steps = 0
 
     while not done:
-        state = env.get_state()
-        action = policy_net.get_action(state)
-        reward = env.take_action(action)
+        state = process_state(env.get_state())
+        action = convert_action(policy_net.get_action(state))
+        reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
         env.step()
         done = env.get_done()
 
         episode_reward += reward
+        episode_task_count += len(srl)
+        episode_suc_count += success_num
 
+        steps += 1
+
+    print('Testing: accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio {:.2f}'.format(episode_reward, episode_reward/steps, episode_suc_count/episode_task_count))
     return episode_reward
