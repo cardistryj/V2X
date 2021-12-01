@@ -1,31 +1,24 @@
-import torch
-# import pandas as pd
-# import datetime
+from git import Repo
 import model
-import pdb
+import os
 
-reward_list = model.train()
+MODEL_POLICY_ROOT_PATH = 'models/'
+RESULT_ROOT_PATH = 'results/'
+MODEL_NAME = 'network.pth'
+branch_name = Repo('.').active_branch.name
+MODEL_POLICY_DIR = os.path.join(MODEL_POLICY_ROOT_PATH, branch_name)
+RESULT_DIR = os.path.join(RESULT_ROOT_PATH, branch_name)
 
-ddpg_policy_net = torch.load('ddpg_policy_net.pth')
+if not os.path.isdir(MODEL_POLICY_DIR):
+    os.mkdir(MODEL_POLICY_DIR)
 
-test_accumulated_reward = model.test(ddpg_policy_net)
+if not os.path.isdir(RESULT_DIR):
+    os.mkdir(RESULT_DIR)
 
-pdb.set_trace()
+MODEL_POLICY_PATH = os.path.join(MODEL_POLICY_DIR, MODEL_NAME)
 
-# qualified_rate=0
-# qualified_test_rate=0
-# for log in system_log:
-#     if log[-1]>THROUGHPUT_BASELINE:
-#         qualified_rate+=1
-# for log in test_system_log:
-#     if log[-1]>THROUGHPUT_BASELINE:
-#         qualified_test_rate+=1
-
-# qualified_rate/=len(system_log)
-# qualified_test_rate/=len(test_system_log)
-
-# print('训练过程吞吐合格率:'+str(qualified_rate))
-# print('测试过程吞吐合格率:'+str(qualified_test_rate))
+reward_list = model.train(MODEL_POLICY_PATH)
+test_accumulated_reward = model.test(MODEL_POLICY_PATH)
 
 # result = pd.DataFrame({'average_reward_list': average_reward_list, 'qos_list': qos_list,
 #                        'test_average_reward_list': test_average_reward_list, 'test_qos_list': test_qos_list})
