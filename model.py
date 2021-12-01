@@ -9,16 +9,28 @@ EPISODE_NUM = 1000
 EPISODE_MAX_TS = 500
 BATCH_SIZE = 32
 HIDDEN_DIM = 1024
-DECISION_DIM = VEHICLE_NUM + RES_NUM + MES_NUM + 1
+
+COMPRESSED_VEHI_NUM = 5
+STATE_DIM = VEHICLE_NUM  * 27
+DECISION_DIM = COMPRESSED_VEHI_NUM + RES_NUM + MES_NUM + 1
 ACTION_DIM = VEHICLE_NUM * (DECISION_DIM + 4)
 
 def tanh_to_01(x):
     # 将神经网络输出 tanh 映射至 [0, 1] 区间
     return (x+1)/2
 
-def convert_action(raw_actions):
+def process_state(raw_mats):
+    task_mat, vehi_constraintime_mat, vehi_cap_mat, res_mat, mes_mat = raw_mats
+    idx_col = np.lexsort((-vehi_cap_mat, -vehi_constraintime_mat), axis=1)[:,:COMPRESSED_VEHI_NUM]
+    idx_row = np.arange(VEHICLE_NUM).reshape((VEHICLE_NUM, 1)).repeat(COMPRESSED_VEHI_NUM, axis=1)
+    compressed_time = vehi_constraintime_mat[idx_row, idx_col]
+    compressed_cap = vehi_cap_mat[idx_row, idx_col]
+    return np.concatenate((task_mat, compressed_time, compressed_cap, res_mat, mes_mat),axis=1).reshape(-1), idx_col
+
+def convert_action(raw_actions, idx_col):
     actions = raw_actions.reshape((VEHICLE_NUM, -1))
-    decision = np.argmax(actions[:,:DECISION_DIM], axis=1).reshape(-1, 1)
+    decision_idx = np.argmax(actions[:,:DECISION_DIM], axis=1)
+    decision = np.array([col[deci] if deci < COMPRESSED_VEHI_NUM else deci-COMPRESSED_VEHI_NUM+VEHICLE_NUM for (col, deci) in zip(idx_col, decision_idx)]).reshape(-1, 1)
     ratio = tanh_to_01(actions[:,DECISION_DIM:])
     return np.concatenate((decision, ratio), axis=1)
 
@@ -39,8 +51,9 @@ def train(episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
         steps = 0
 
         while not done:
-            # state = env.get_state()
-            action = convert_action(get_random_from(-1, 1, (ACTION_DIM,)))
+            raw_mats = env.get_state()
+            _, idx_col = process_state(raw_mats)
+            action = convert_action(get_random_from(-1, 1, (ACTION_DIM,)), idx_col)
 
             reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
             env.step()
