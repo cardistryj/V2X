@@ -54,7 +54,7 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
             state, idx_col = process_state(raw_mats) if steps == 0 else (next_state, next_idx_col)
             raw_action = ddpg.policy_net.get_action(state)
             action = convert_action(raw_action, idx_col)
-            reward, (srl, success_num, ES_succount, time_list) = env.take_action(action)
+            reward, (srl, success_num) = env.take_action(action)
             env.step()
             next_raw_mats = env.get_state()
             next_state, next_idx_col = process_state(next_raw_mats)
