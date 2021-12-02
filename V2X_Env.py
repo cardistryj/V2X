@@ -170,9 +170,7 @@ class Station:
     def get_cur_state(self):
         return self.cur_band, self.cur_cap
     
-    def serve_task(self, cap_ratio, band_ratio, fin_time):
-        cap_req = self.cur_cap*cap_ratio
-        band_req = self.cur_band*band_ratio
+    def serve_task(self, cap_req, band_req, fin_time):
         self.cur_tasks.append((cap_req, band_req, fin_time))
         self.cur_cap -= cap_req
         self.cur_band -= band_req
@@ -299,14 +297,21 @@ class C_V2X:
         MES_fintime = []
         cloud_fintime = []
 
-        for idx, (vehi, action) in enumerate(zip(self.vehicles, actions)):
+        decisions = actions[:,0].astype(int)
+        ratios = actions[:,-4:]
+        for ES_idx in range(VEHICLE_NUM, VEHICLE_NUM + RES_NUM + MES_NUM):
+            idx = decisions == ES_idx
+            cor_ratios = ratios[idx, :]
+            if not len(cor_ratios):
+                cor_ratios /= np.sum(cor_ratios, axis=0) 
+
+        for idx, (vehi, decision, ratio) in enumerate(zip(self.vehicles, decisions, ratios)):
             if not vehi.if_task():
                 continue
             ddl = vehi.get_task_ddl()
             comp_req, tran_req = vehi.get_task_req()
-            raw_idx = int(action[0])
-            if raw_idx < VEHICLE_NUM:
-                server_idx = raw_idx
+            if decision < VEHICLE_NUM:
+                server_idx = decision
                 server = self.vehicles[server_idx]
                 if not server.if_idle():
                     total_time = math.inf
@@ -329,14 +334,13 @@ class C_V2X:
                 
                 vehi_fintime.append((idx,total_time))
 
-            elif raw_idx < VEHICLE_NUM + RES_NUM:
-                server_idx = raw_idx - VEHICLE_NUM
+            elif decision < VEHICLE_NUM + RES_NUM:
+                server_idx = decision - VEHICLE_NUM
                 server = self.RESs[server_idx]
-                (band_ratio, cap_ratio) = action[1:3]
-                (cur_band, cur_cap) = server.get_cur_state()
+                (band_req, cap_req) = ratio[0:2] * server.get_cur_state()
 
-                comm_time = tran_req/(cur_band*band_ratio)
-                comp_time = comp_req/(cur_cap*cap_ratio)*1e-3
+                comm_time = tran_req/(band_req)
+                comp_time = comp_req/(cap_req)*1e-3
                 total_time = comm_time + comp_time
 
                 ####################
@@ -346,18 +350,17 @@ class C_V2X:
                 if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
-                    server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+                    server.serve_task(cap_req, band_req, self.time+total_time)
                 
                 RES_fintime.append((idx,total_time))
 
-            elif raw_idx < VEHICLE_NUM + RES_NUM + MES_NUM:
-                server_idx = raw_idx - VEHICLE_NUM - RES_NUM
+            elif decision < VEHICLE_NUM + RES_NUM + MES_NUM:
+                server_idx = decision - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
-                (band_ratio, cap_ratio) = action[3:5]
-                (cur_band, cur_cap) = server.get_cur_state()
+                (band_req, cap_req) = ratio[2:4] * server.get_cur_state()
 
-                comm_time = tran_req/(cur_band*band_ratio)
-                comp_time = comp_req/(cur_cap*cap_ratio)*1e-3
+                comm_time = tran_req/(band_req)
+                comp_time = comp_req/(cap_req)*1e-3
                 total_time = comm_time + comp_time
 
                 ####################
@@ -367,7 +370,7 @@ class C_V2X:
                 if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
-                    server.serve_task(cap_ratio, band_ratio, self.time+total_time)
+                    server.serve_task(cap_req, band_req, self.time+total_time)
 
                 MES_fintime.append((idx,total_time))
             
@@ -383,7 +386,7 @@ class C_V2X:
             if_success = constrain_time/total_time > 1
             if not if_success:
                 vehi.clear_task()
-            reward_list.append(1 if if_success else -10)
+            reward_list.append(10 if if_success else -1)
             constraintime_list.append(constrain_time)
             task_idx_list.append(idx)
         
