@@ -12,7 +12,7 @@ BATCH_SIZE = 32
 HIDDEN_DIM = 1024
 
 COMPRESSED_VEHI_NUM = 5
-STATE_DIM = VEHICLE_NUM  * 27
+STATE_DIM = VEHICLE_NUM  * 32
 DECISION_DIM = COMPRESSED_VEHI_NUM + RES_NUM + MES_NUM + 1
 ACTION_DIM = VEHICLE_NUM * (DECISION_DIM + 4)
 
@@ -26,7 +26,7 @@ def process_state(raw_mats):
     idx_row = np.arange(VEHICLE_NUM).reshape((VEHICLE_NUM, 1)).repeat(COMPRESSED_VEHI_NUM, axis=1)
     compressed_time = vehi_constraintime_mat[idx_row, idx_col]
     compressed_cap = vehi_cap_mat[idx_row, idx_col]
-    return np.concatenate((task_mat, compressed_time, compressed_cap, res_mat, mes_mat),axis=1).reshape(-1), idx_col
+    return np.concatenate((task_mat, compressed_time, compressed_cap, idx_col, res_mat, mes_mat),axis=1).reshape(-1), idx_col
 
 def convert_action(raw_actions, idx_col):
     actions = raw_actions.reshape((VEHICLE_NUM, -1))
