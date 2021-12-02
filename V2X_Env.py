@@ -291,6 +291,7 @@ class C_V2X:
         # for debugging
         ###############
         id_time_list = [] # first: constraint time ;  second: total
+        ES_decision_count = 0
         ES_succount = 0
 
         decisions = actions[:,0].astype(int)
@@ -346,6 +347,8 @@ class C_V2X:
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_req, band_req, self.time+total_time)
                     ES_succount += 1
+                
+                ES_decision_count += 1
 
             elif decision < VEHICLE_NUM + RES_NUM + MES_NUM:
                 server_idx = decision - VEHICLE_NUM - RES_NUM
@@ -365,6 +368,8 @@ class C_V2X:
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_req, band_req, self.time+total_time)
                     ES_succount += 1
+                
+                ES_decision_count += 1
             
             else:
                 total_time = tran_req * CLOUD_MULTIPLIER
@@ -381,7 +386,8 @@ class C_V2X:
             id_time_list.append((idx, constrain_time, total_time))
         
         # pdb.set_trace()
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))), ES_succount, id_time_list)
+        self.dbinfo = (id_time_list, ES_decision_count, ES_succount)
+        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
     
     def step(self):
         self.time += TIMESLICE
