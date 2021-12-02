@@ -291,8 +291,12 @@ class C_V2X:
         # for debugging
         ###############
         id_time_list = [] # first: constraint time ;  second: total
-        ES_decision_count = 0
-        ES_succount = 0
+        RES_decision_count = 0
+        RES_succount = 0
+        MES_decision_count = 0
+        MES_succount = 0
+        cloud_count = 0
+        cloud_succount = 0
         vehi_coll_count = 0
 
         decisions = actions[:,0].astype(int)
@@ -350,9 +354,9 @@ class C_V2X:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_req, band_req, self.time+total_time)
-                    ES_succount += 1
+                    RES_succount += 1
                 
-                ES_decision_count += 1
+                RES_decision_count += 1
 
             elif decision < VEHICLE_NUM + RES_NUM + MES_NUM:
                 server_idx = decision - VEHICLE_NUM - RES_NUM
@@ -371,16 +375,21 @@ class C_V2X:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
                     server.serve_task(cap_req, band_req, self.time+total_time)
-                    ES_succount += 1
+                    MES_succount += 1
                 
-                ES_decision_count += 1
+                MES_decision_count += 1
             
             else:
                 total_time = tran_req * CLOUD_MULTIPLIER
                 constrain_time = ddl
+
+                cloud_count += 1
+
                 if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
+
+                    cloud_succount += 1
 
             if_success = constrain_time/total_time > 1
             if not if_success:
@@ -390,12 +399,21 @@ class C_V2X:
                 if decision < VEHICLE_NUM or decision == VEHICLE_NUM + RES_NUM + MES_NUM:
                     reward_list.append(10)
                 else:
-                    reward_list.append(100)
+                    reward_list.append(1000)
 
             id_time_list.append((idx, constrain_time, total_time))
         
         # pdb.set_trace()
-        self.dbinfo = (id_time_list, ES_decision_count, ES_succount, vehi_coll_count)
+        self.dbinfo = {
+            'idx - constrain_time - total_time': id_time_list,
+            'RES decision count': RES_decision_count,
+            'RES success count': RES_succount,
+            'MES decision count': MES_decision_count,
+            'MES success count': MES_succount,
+            'cloud decision count': cloud_count,
+            'cloud success count': cloud_succount,
+        }
+        
         return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
     
     def step(self):
