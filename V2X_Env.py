@@ -339,8 +339,8 @@ class C_V2X:
                 server = self.RESs[server_idx]
                 (band_req, cap_req) = ratio[0:2] * server.get_cur_state()
 
-                comm_time = tran_req/(band_req)
-                comp_time = comp_req/(cap_req)*1e-3
+                comm_time = tran_req/(band_req) if band_req else math.inf
+                comp_time = comp_req/(cap_req)*1e-3 if cap_req else math.inf
                 total_time = comm_time + comp_time
 
                 ####################
@@ -359,8 +359,8 @@ class C_V2X:
                 server = self.MESs[server_idx]
                 (band_req, cap_req) = ratio[2:4] * server.get_cur_state()
 
-                comm_time = tran_req/(band_req)
-                comp_time = comp_req/(cap_req)*1e-3
+                comm_time = tran_req/(band_req) if band_req else math.inf
+                comp_time = comp_req/(cap_req)*1e-3 if cap_req else math.inf
                 total_time = comm_time + comp_time
 
                 ####################
