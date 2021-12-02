@@ -293,6 +293,7 @@ class C_V2X:
         id_time_list = [] # first: constraint time ;  second: total
         ES_decision_count = 0
         ES_succount = 0
+        vehi_coll_count = 0
 
         decisions = actions[:,0].astype(int)
         ratios = actions[:,-4:]
@@ -311,6 +312,9 @@ class C_V2X:
                 server_idx = decision
                 server = self.vehicles[server_idx]
                 if not server.if_idle():
+
+                    vehi_coll_count += 1
+
                     total_time = math.inf
                     comm_time = math.inf
                     comp_time = math.inf
@@ -381,12 +385,17 @@ class C_V2X:
             if_success = constrain_time/total_time > 1
             if not if_success:
                 vehi.clear_task()
+                reward_list.append(-1)
+            else:
+                if decision < VEHICLE_NUM or decision == VEHICLE_NUM + RES_NUM + MES_NUM:
+                    reward_list.append(10)
+                else:
+                    reward_list.append(100)
 
-            reward_list.append(10 if if_success else -1)
             id_time_list.append((idx, constrain_time, total_time))
         
         # pdb.set_trace()
-        self.dbinfo = (id_time_list, ES_decision_count, ES_succount)
+        self.dbinfo = (id_time_list, ES_decision_count, ES_succount, vehi_coll_count)
         return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
     
     def step(self):
