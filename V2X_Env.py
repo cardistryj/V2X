@@ -2,8 +2,8 @@ import numpy as np
 import math
 import pdb
 
-MAP_WIDTH = 1000 # 场景宽度(m)
-MAP_HEIGHT = 700 # 场景高度(m)
+MAP_WIDTH = 700 # 场景宽度(m)
+MAP_HEIGHT = 1000 # 场景高度(m)
 TIMESLICE = 0.05 # 一个step的时间片长度(s)
 
 def get_random_from(min_val, max_val, shape = ()):
@@ -148,7 +148,7 @@ RES_RADIUS = 150 # RES通信范围(米)
 RES_CAP = 100 # RES计算能力(GHz)
 RES_BAND = 20 # RES带宽(MB)
 RES_LOC_MIN = 0
-RES_LOC_MAX = 0
+RES_LOC_MAX = 700
 RES_OFFSET = 3 # RES与道路的直线距离
 #RES服务器固定的位置(与RSU共同放置的服务器)
 RES_LOC_X = [ RES_LOC_MIN + i*(RES_LOC_MAX-RES_LOC_MIN)/(RES_NUM-1) for i in range(RES_NUM)]
