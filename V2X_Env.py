@@ -4,7 +4,7 @@ import pdb
 
 MAP_WIDTH = 1000 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
-TIMESLICE = 0.1 # 一个step的时间片长度(s)
+TIMESLICE = 0.05 # 一个step的时间片长度(s)
 
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
@@ -30,9 +30,13 @@ def calc_commtime(cent_x, cent_y, radius, vehi_x, vehi_y, velo_x, velo_y):
         return 0
     return calc_cosform(dist, radius, cosangle)/calc_norm(velo_x, velo_y)
 
+def calc_trans_rate(bandwidth, dist, constant):
+    return bandwidth * math.log(1+ pow(10, (-constant-35 * math.log(dist, 10))/10) / 3.98e-14 )
+
+
 # TODO 考虑重新调整任务范围
-COMP_REQ_RANGE = [80, 120] # 任务计算量范围(Mcycles)
-TRAN_REQ_RANGE = [0.8, 1.2] # 任务数据量范围(MB)
+COMP_REQ_RANGE = [0.1, 1.2] # 任务计算量范围(G)
+TRAN_REQ_RANGE = [0.4, 0.8] # 任务数据量范围(MB)
 DDL_RANGE = [0.05, 0.15] # 截止时间约束(s)
 TASK_GEN_PROB = 0.8 # 每辆车在空闲时生成task的概率
 
@@ -132,6 +136,12 @@ class Vehicle:
         rela_velo_x = velocity_x - self.velocity_x
         rela_velo_y = velocity_y - self.velocity_y
         return calc_commtime(self.x, self.y, VEHICLE_COMM_DIST, *(targ_vehi.get_position()), rela_velo_x, rela_velo_y)
+    
+    def calc_trans_rate(self, targ_vehi):
+        if self == targ_vehi:
+            return math.inf
+        dist = calc_norm(self.x, self.y, targ_vehi.x, targ_vehi.y)
+        return calc_trans_rate(VEHICLE_BAND, dist, 30)
 
 RES_NUM = 3 # RES服务器数量 ### 先假设全部均匀分布，道路两侧
 RES_RADIUS = 150 # RES通信范围(米)
@@ -152,7 +162,7 @@ MES_BAND = 10 # MES带宽(MB)
 MES_LOC_X = [50,950]
 MES_LOC_Y = [1000, 0]
 
-CLOUD_MULTIPLIER = 0.15 # 云计算完成时间乘数
+CLOUD_MULTIPLIER = 0.2 # 云计算完成时间乘数
 
 class Station:
     def __init__(self, cap, band, x, y, radius):
@@ -189,6 +199,10 @@ class Station:
         targ_vehi: Vehicle
         '''
         return calc_commtime(self.x, self.y, self.radius, *(targ_vehi.get_position()), *(targ_vehi.get_velocity()))
+
+    def calc_trans_rate(self, band_allot, targ_vehi):
+        dist = calc_norm(self.x, self.y, targ_vehi.x, targ_vehi.y)
+        return calc_trans_rate(band_allot, dist, 40)
 
 class C_V2X:
     def __init__(self, episode_max_ts):
@@ -312,19 +326,23 @@ class C_V2X:
                 continue
             ddl = vehi.get_task_ddl()
             comp_req, tran_req = vehi.get_task_req()
+
+            if_collision = False
+
             if decision < VEHICLE_NUM:
                 server_idx = decision
                 server = self.vehicles[server_idx]
                 if not server.if_idle():
 
+                    if_collision = True
                     vehi_coll_count += 1
 
                     total_time = math.inf
                     comm_time = math.inf
                     comp_time = math.inf
                 else:
-                    comm_time = tran_req/VEHICLE_BAND
-                    comp_time = comp_req/server.get_cap()*1e-3
+                    comm_time = tran_req/server.calc_trans_rate(vehi)
+                    comp_time = comp_req/server.get_cap()
                     total_time = comm_time + comp_time
                 
                 ####################
@@ -340,10 +358,10 @@ class C_V2X:
             elif decision < VEHICLE_NUM + RES_NUM:
                 server_idx = decision - VEHICLE_NUM
                 server = self.RESs[server_idx]
-                (band_req, cap_req) = ratio[0:2] * server.get_cur_state()
+                (band_allot, cap_allot) = ratio[0:2] * server.get_cur_state()
 
-                comm_time = tran_req/(band_req) if band_req else math.inf
-                comp_time = comp_req/(cap_req)*1e-3 if cap_req else math.inf
+                comm_time = tran_req/(server.calc_trans_rate(band_allot, vehi)) if band_allot else math.inf
+                comp_time = comp_req/(cap_allot) if cap_allot else math.inf
                 total_time = comm_time + comp_time
 
                 ####################
@@ -353,7 +371,7 @@ class C_V2X:
                 if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
-                    server.serve_task(cap_req, band_req, self.time+total_time)
+                    server.serve_task(cap_allot, band_allot, self.time+total_time)
                     RES_succount += 1
                 
                 RES_decision_count += 1
@@ -361,10 +379,10 @@ class C_V2X:
             elif decision < VEHICLE_NUM + RES_NUM + MES_NUM:
                 server_idx = decision - VEHICLE_NUM - RES_NUM
                 server = self.MESs[server_idx]
-                (band_req, cap_req) = ratio[2:4] * server.get_cur_state()
+                (band_allot, cap_allot) = ratio[2:4] * server.get_cur_state()
 
-                comm_time = tran_req/(band_req) if band_req else math.inf
-                comp_time = comp_req/(cap_req)*1e-3 if cap_req else math.inf
+                comm_time = tran_req/(server.calc_trans_rate(band_allot, vehi)) if band_allot else math.inf
+                comp_time = comp_req/(cap_allot) if cap_allot else math.inf
                 total_time = comm_time + comp_time
 
                 ####################
@@ -374,7 +392,7 @@ class C_V2X:
                 if total_time < constrain_time:
                     # 当前任务分配成功
                     vehi.mount_task(self.time+total_time)
-                    server.serve_task(cap_req, band_req, self.time+total_time)
+                    server.serve_task(cap_allot, band_allot, self.time+total_time)
                     MES_succount += 1
                 
                 MES_decision_count += 1
@@ -394,12 +412,12 @@ class C_V2X:
             if_success = constrain_time/total_time > 1
             if not if_success:
                 vehi.clear_task()
-                reward_list.append(-1)
+                reward_list.append(-10 if if_collision else -1)
             else:
                 if decision < VEHICLE_NUM or decision == VEHICLE_NUM + RES_NUM + MES_NUM:
                     reward_list.append(10)
                 else:
-                    reward_list.append(1000)
+                    reward_list.append(100)
 
             id_time_list.append((idx, constrain_time, total_time))
         
@@ -412,6 +430,7 @@ class C_V2X:
             'MES success count': MES_succount,
             'cloud decision count': cloud_count,
             'cloud success count': cloud_succount,
+            'vehi collision count': vehi_coll_count,
         }
         
         return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
