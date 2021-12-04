@@ -4,7 +4,7 @@ import pdb
 
 MAP_WIDTH = 700 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
-TIMESLICE = 0.05 # 一个step的时间片长度(s)
+TIMESLICE = 0.2 # 一个step的时间片长度(s)
 
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
@@ -141,7 +141,7 @@ class Vehicle:
         if self == targ_vehi:
             return math.inf
         dist = calc_norm(self.x, self.y, targ_vehi.x, targ_vehi.y)
-        return calc_trans_rate(VEHICLE_BAND, dist, 30)
+        return calc_trans_rate(VEHICLE_BAND, dist, 50)
 
 RES_NUM = 3 # RES服务器数量 ### 先假设全部均匀分布，道路两侧
 RES_RADIUS = 150 # RES通信范围(米)
@@ -165,13 +165,14 @@ MES_LOC_Y = [1000]
 CLOUD_MULTIPLIER = 0.2 # 云计算完成时间乘数
 
 class Station:
-    def __init__(self, cap, band, x, y, radius):
+    def __init__(self, cap, band, x, y, radius, tran_constant):
         self.cur_cap = cap
         self.cur_band = band
         self.x = x
         self.y = y
         self.radius = radius
         self.cur_tasks = []
+        self.trans_constant = tran_constant
     
     def reset(self, cur_cap, cur_band):
         self.cur_cap = cur_cap
@@ -202,13 +203,13 @@ class Station:
 
     def calc_trans_rate(self, band_allot, targ_vehi):
         dist = calc_norm(self.x, self.y, targ_vehi.x, targ_vehi.y)
-        return calc_trans_rate(band_allot, dist, 40)
+        return calc_trans_rate(band_allot, dist, self.trans_constant)
 
 class C_V2X:
     def __init__(self, episode_max_ts):
         # 初始化状态
-        self.RESs = [Station(RES_CAP, RES_BAND, x, y, RES_RADIUS) for x,y in zip(RES_LOC_X, RES_LOC_Y)]
-        self.MESs = [Station(MES_CAP, MES_BAND, x, y, MES_RADIUS) for x,y in zip(MES_LOC_X, MES_LOC_Y)]
+        self.RESs = [Station(RES_CAP, RES_BAND, x, y, RES_RADIUS, 40) for x,y in zip(RES_LOC_X, RES_LOC_Y)]
+        self.MESs = [Station(MES_CAP, MES_BAND, x, y, MES_RADIUS, 30) for x,y in zip(MES_LOC_X, MES_LOC_Y)]
         self.vehicles = [Vehicle() for _ in range(VEHICLE_NUM)]
         self.time = 0
         self.done = False
@@ -304,7 +305,9 @@ class C_V2X:
         ###############
         # for debugging
         ###############
-        id_time_list = [] # first: constraint time ;  second: total
+        time_list = [] # first: constraint time ;  second: total
+        task_list = []
+        ratios_list = []
         RES_decision_count = 0
         RES_succount = 0
         MES_decision_count = 0
@@ -399,6 +402,8 @@ class C_V2X:
             
             else:
                 total_time = tran_req * CLOUD_MULTIPLIER
+                comm_time = 'cloud'
+                comp_time = 'cloud'
                 constrain_time = ddl
 
                 cloud_count += 1
@@ -419,11 +424,15 @@ class C_V2X:
                 else:
                     reward_list.append(100)
 
-            id_time_list.append((idx, constrain_time, total_time))
+            time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
+            task_list.append((idx, comp_req, tran_req, decision))
+            ratios_list.append((idx, decision, ratio))
         
         # pdb.set_trace()
         self.dbinfo = {
-            'idx - constrain_time - total_time': id_time_list,
+            # 'tasks': task_list,
+            # 'times': time_list,
+            # 'ratios': ratios_list,
             'RES decision count': RES_decision_count,
             'RES success count': RES_succount,
             'MES decision count': MES_decision_count,
