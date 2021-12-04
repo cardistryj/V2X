@@ -430,9 +430,9 @@ class C_V2X:
         
         # pdb.set_trace()
         self.dbinfo = {
-            # 'tasks': task_list,
-            # 'times': time_list,
-            # 'ratios': ratios_list,
+            'tasks': task_list,
+            'times': time_list,
+            'ratios': ratios_list,
             'RES decision count': RES_decision_count,
             'RES success count': RES_succount,
             'MES decision count': MES_decision_count,
