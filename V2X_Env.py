@@ -4,7 +4,7 @@ import pdb
 
 MAP_WIDTH = 700 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
-TIMESLICE = 0.2 # 一个step的时间片长度(s)
+TIMESLICE = 0.1 # 一个step的时间片长度(s)
 
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
