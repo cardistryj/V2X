@@ -130,7 +130,7 @@ class DDPG:
 
     def ddpg_update(self,
                     batch_size,
-                    gamma=0.99,
+                    gamma=0.01,
                     min_value=-np.inf,
                     max_value=np.inf,
                     soft_tau=1e-2):
