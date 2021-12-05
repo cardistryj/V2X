@@ -102,7 +102,7 @@ class Vehicle:
         self.serve_fin_time = fin_time
 
     def get_task_req(self):
-        return (self.comp_req, self.tran_req)
+        return (self.comp_req, self.tran_req) if self.if_task() else (0, 0)
     
     def get_task_ddl(self):
         return self.ddl
@@ -279,7 +279,7 @@ class C_V2X:
         return self.done
     
     def comp_state(self):
-        task_mat = np.array([(vehi.get_task_req() if vehi.if_task() else (0, 0)) for vehi in self.vehicles])
+        task_mat = np.array([vehi.get_task_req() for vehi in self.vehicles])
         vehi_constraintime_mat, vehi_cap_mat = self.calc_vehi_mat()
         res_mat = self.calc_res_mat()
         mes_mat = self.calc_mes_mat()
