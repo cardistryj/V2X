@@ -31,7 +31,7 @@ def calc_commtime(cent_x, cent_y, radius, vehi_x, vehi_y, velo_x, velo_y):
     return calc_cosform(dist, radius, cosangle)/calc_norm(velo_x, velo_y)
 
 def calc_trans_rate(bandwidth, dist, constant):
-    return bandwidth * math.log(1+ pow(10, (-constant-35 * math.log(dist, 10))/10) / 3.98e-14 )
+    return bandwidth * math.log(1+ pow(10, (-constant-35 * math.log(dist, 10))/10) / 3e-13 )
 
 
 # TODO 考虑重新调整任务范围
@@ -146,7 +146,7 @@ class Vehicle:
 RES_NUM = 3 # RES服务器数量 ### 先假设全部均匀分布，道路两侧
 RES_RADIUS = 150 # RES通信范围(米)
 RES_CAP = 100 # RES计算能力(GHz)
-RES_BAND = 20 # RES带宽(MB)
+RES_BAND = 100 # RES带宽(MB)
 RES_LOC_MIN = 0
 RES_LOC_MAX = 700
 RES_OFFSET = 3 # RES与道路的直线距离
@@ -157,7 +157,7 @@ RES_LOC_Y = [ MAP_HEIGHT//2 + (ROAD_WIDTH + RES_OFFSET) * (i % 2 * 2 - 1) for i 
 MES_NUM = 1 # MES服务器数量
 MES_RADIUS = 600 # MES通信范围(m)
 MES_CAP = 200 # MES计算能力(GHz)
-MES_BAND = 10 # MES带宽(MB)
+MES_BAND = 50 # MES带宽(MB)
 #MES服务器固定的位置(与宏基站共同放置的服务器)
 MES_LOC_X = [0]
 MES_LOC_Y = [1000]
