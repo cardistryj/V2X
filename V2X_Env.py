@@ -442,7 +442,7 @@ class C_V2X:
             'vehi collision count': vehi_coll_count,
         }
         
-        return sum(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
+        return sum(reward_list)/len(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
     
     def step(self):
         self.time += TIMESLICE
