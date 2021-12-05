@@ -415,14 +415,7 @@ class C_V2X:
                     cloud_succount += 1
 
             if_success = constrain_time/total_time > 1
-            if not if_success:
-                vehi.clear_task()
-                reward_list.append(-10 if if_collision else -1)
-            else:
-                if decision < VEHICLE_NUM or decision == VEHICLE_NUM + RES_NUM + MES_NUM:
-                    reward_list.append(10)
-                else:
-                    reward_list.append(100)
+            reward_list.append(10 if if_success else -10)
 
             time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
             task_list.append((idx, comp_req, tran_req, decision))
