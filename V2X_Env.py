@@ -37,14 +37,14 @@ def calc_trans_rate(bandwidth, dist, constant):
 # TODO 考虑重新调整任务范围
 COMP_REQ_RANGE = [0.1, 1.2] # 任务计算量范围(G)
 TRAN_REQ_RANGE = [0.4, 0.8] # 任务数据量范围(MB)
-DDL_RANGE = [0.05, 0.15] # 截止时间约束(s)
+DDL_RANGE = [0.15, 0.25] # 截止时间约束(s)
 TASK_GEN_PROB = 0.8 # 每辆车在空闲时生成task的概率
 
 LANE_WIDTH = 5 # 车道宽度(m)
 LANE_NUM = 1 # 单向车道数量
 ROAD_WIDTH = LANE_NUM * LANE_WIDTH # 道路宽度(m)
 
-VEHICLE_NUM = 10
+VEHICLE_NUM = 20
 
 VELOCITY_RANGE = [10, 20] # 车辆速度(m/s)
 VEHICLE_X_RANGE = [100, 600] # 车辆x坐标范围(m)
@@ -416,6 +416,8 @@ class C_V2X:
 
             if_success = constrain_time/total_time > 1
             reward_list.append(10 if if_success else -10)
+            if not if_success:
+                vehi.clear_task()
 
             time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
             task_list.append((idx, comp_req, tran_req, decision))
@@ -435,7 +437,8 @@ class C_V2X:
             'vehi collision count': vehi_coll_count,
         }
         
-        return sum(reward_list)/len(reward_list), (reward_list, len(list(filter(lambda x: x>0, reward_list))))
+        averaged_reward = sum(reward_list)/len(reward_list) if len(reward_list) else 0
+        return averaged_reward, (reward_list, len(list(filter(lambda x: x>0, reward_list))))
     
     def step(self):
         self.time += TIMESLICE
