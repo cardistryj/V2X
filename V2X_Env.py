@@ -44,7 +44,7 @@ LANE_WIDTH = 5 # 车道宽度(m)
 LANE_NUM = 1 # 单向车道数量
 ROAD_WIDTH = LANE_NUM * LANE_WIDTH # 道路宽度(m)
 
-VEHICLE_NUM = 10
+VEHICLE_NUM = 20
 
 VELOCITY_RANGE = [10, 20] # 车辆速度(m/s)
 VEHICLE_X_RANGE = [100, 600] # 车辆x坐标范围(m)
