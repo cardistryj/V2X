@@ -44,7 +44,7 @@ LANE_WIDTH = 5 # 车道宽度(m)
 LANE_NUM = 1 # 单向车道数量
 ROAD_WIDTH = LANE_NUM * LANE_WIDTH # 道路宽度(m)
 
-VEHICLE_NUM = 20
+VEHICLE_NUM = 10
 
 VELOCITY_RANGE = [10, 20] # 车辆速度(m/s)
 VEHICLE_X_RANGE = [100, 600] # 车辆x坐标范围(m)
@@ -415,9 +415,9 @@ class C_V2X:
                     cloud_succount += 1
 
             if_success = constrain_time/total_time > 1
-            reward_list.append(10 if if_success else -10)
-            if not if_success:
-                vehi.clear_task()
+            reward_list.append(10 if if_success else 0)
+            # if not if_success:
+            #     vehi.clear_task()
 
             time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
             task_list.append((idx, comp_req, tran_req, decision))
