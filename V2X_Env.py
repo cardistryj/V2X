@@ -4,7 +4,7 @@ import pdb
 
 MAP_WIDTH = 700 # 场景宽度(m)
 MAP_HEIGHT = 1000 # 场景高度(m)
-TIMESLICE = 0.1 # 一个step的时间片长度(s)
+TIMESLICE = 0.05 # 一个step的时间片长度(s)
 
 def get_random_from(min_val, max_val, shape = ()):
     return min_val + (max_val - min_val)* np.random.rand(*shape)
@@ -90,6 +90,11 @@ class Vehicle:
     def mount_task(self, fin_time):
         self.mounted = True
         self.task_fin_time = fin_time
+    
+    def handle_task_failed(self):
+        self.ddl -= TIMESLICE
+        if self.ddl <= TIMESLICE:
+            self.clear_task()
     
     def if_idle(self):
         return self.idle
@@ -416,8 +421,8 @@ class C_V2X:
 
             if_success = constrain_time/total_time > 1
             reward_list.append(10 if if_success else 0)
-            # if not if_success:
-            #     vehi.clear_task()
+            if not if_success:
+                vehi.handle_task_failed()
 
             time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
             task_list.append((idx, comp_req, tran_req, decision))
