@@ -1,20 +1,11 @@
 from ddpg import DDPG
-from V2X_Env import C_V2X, VEHICLE_NUM, RES_NUM, MES_NUM
+from V2X_Env import C_V2X
+from config import *
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from functools import reduce
 import pdb
-
-EPISODE_NUM = 2000
-EPISODE_MAX_TS = 500
-BATCH_SIZE = 256
-HIDDEN_DIM = 512
-
-COMPRESSED_VEHI_NUM = 5
-STATE_DIM = VEHICLE_NUM  * 29
-DECISION_DIM = COMPRESSED_VEHI_NUM + RES_NUM + MES_NUM + 1
-ACTION_DIM = VEHICLE_NUM * (DECISION_DIM + 4)
 
 def tanh_to_01(x):
     # 将神经网络输出 tanh 映射至 [0, 1] 区间
@@ -63,7 +54,7 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
             ddpg.replay_buffer.push(state, raw_action, reward, next_state, done)
 
             if len(ddpg.replay_buffer) > batch_size:
-                ddpg.ddpg_update(batch_size)
+                ddpg.ddpg_update(batch_size, gamma = GAMMA)
 
             episode_reward += reward
             episode_task_count += len(srl)
@@ -97,7 +88,7 @@ def test(policy_net_path, episode_ts=EPISODE_MAX_TS):
         state, idx_col = process_state(env.get_state())
         raw_action = policy_net.get_action(state)
         action = convert_action(raw_action, idx_col)
-        reward, (srl, success_num, fintime_list, ddl_list) = env.take_action(action)
+        reward, (srl, success_num) = env.take_action(action)
         env.step()
         done = env.get_done()
 

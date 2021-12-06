@@ -1,19 +1,44 @@
 from git import Repo
 import model
 import os
+import config
+import json
+
+hyperparams = {}
+for hp in filter(lambda x: not x.startswith('_'), dir(config)):
+    hyperparams[hp] = eval('config.{}'.format(hp))
+params_str = json.dumps(hyperparams, indent=4)
+hash_str = str(hash(params_str))
 
 MODEL_POLICY_ROOT_PATH = 'models/'
 RESULT_ROOT_PATH = 'results/'
 MODEL_NAME = 'network.pth'
 branch_name = Repo('.').active_branch.name
-MODEL_POLICY_DIR = os.path.join(MODEL_POLICY_ROOT_PATH, branch_name)
-RESULT_DIR = os.path.join(RESULT_ROOT_PATH, branch_name)
+MODEL_POLICY_BRANCH_DIR = os.path.join(MODEL_POLICY_ROOT_PATH, branch_name)
+RESULT_BRANCH_DIR = os.path.join(RESULT_ROOT_PATH, branch_name)
+
+if not os.path.isdir(MODEL_POLICY_BRANCH_DIR):
+    os.mkdir(MODEL_POLICY_BRANCH_DIR)
+
+if not os.path.isdir(RESULT_BRANCH_DIR):
+    os.mkdir(RESULT_BRANCH_DIR)
+
+MODEL_POLICY_DIR = os.path.join(MODEL_POLICY_BRANCH_DIR, hash_str)
+RESULT_DIR = os.path.join(RESULT_BRANCH_DIR, hash_str)
 
 if not os.path.isdir(MODEL_POLICY_DIR):
     os.mkdir(MODEL_POLICY_DIR)
 
 if not os.path.isdir(RESULT_DIR):
     os.mkdir(RESULT_DIR)
+
+##### 写入配置文件
+MODEL_CONFIG_FILE_PATH = os.path.join(MODEL_POLICY_DIR, 'config.txt')
+RESULT_CONFIG_FILE_PATH = os.path.join(RESULT_DIR, 'config.txt')
+with open(MODEL_CONFIG_FILE_PATH, 'w') as f:
+    f.write(params_str)
+with open(RESULT_CONFIG_FILE_PATH, 'w') as f:
+    f.write(params_str)
 
 MODEL_POLICY_PATH = os.path.join(MODEL_POLICY_DIR, MODEL_NAME)
 
