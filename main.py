@@ -3,6 +3,7 @@ import model
 import os
 import config
 import json
+import time
 
 hyperparams = {}
 for hp in filter(lambda x: not x.startswith('_'), dir(config)):
@@ -10,9 +11,11 @@ for hp in filter(lambda x: not x.startswith('_'), dir(config)):
 params_str = json.dumps(hyperparams, indent=4)
 hash_str = str(hash(params_str))
 
+time_now = time.strftime('%Y_%m_%d_%H%M%S', time.localtime())
+
 MODEL_POLICY_ROOT_PATH = 'models/'
 RESULT_ROOT_PATH = 'results/'
-MODEL_NAME = 'network.pth'
+MODEL_NAME = 'network_{}.pth'.format(time_now)
 branch_name = Repo('.').active_branch.name
 MODEL_POLICY_BRANCH_DIR = os.path.join(MODEL_POLICY_ROOT_PATH, branch_name)
 RESULT_BRANCH_DIR = os.path.join(RESULT_ROOT_PATH, branch_name)
