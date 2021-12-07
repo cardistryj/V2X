@@ -1,6 +1,7 @@
 # import datetime
 import numpy as np
 import random
+import os
 
 import torch
 import torch.nn as nn
@@ -9,6 +10,7 @@ import torch.nn.functional as F
 
 use_cuda = torch.cuda.is_available()
 print("GPU is {}available".format('' if use_cuda else 'not '))
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda" if use_cuda else "cpu")
 
 class ReplayBuffer:
@@ -127,8 +129,6 @@ class DDPG:
         self.transmit_rate_list = []
         self.num_all_users_list = []
         self.num_selected_users_list = []
-
-        self
 
     def ddpg_update(self,
                     batch_size,
