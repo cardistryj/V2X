@@ -4,7 +4,6 @@ from config import *
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from functools import reduce
 import pdb
 
 def tanh_to_01(x):
@@ -30,22 +29,30 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
     env = C_V2X(episode_ts)
     ddpg = DDPG(env, STATE_DIM, ACTION_DIM, HIDDEN_DIM)
 
-    reward_list = []
+    results = {
+        'avg_reward': [],
+        'avg_loss': [],
+        'avg_suc_ratio': [],
+        'avg_responseTime': [],
+    }
 
     for episode in range(EPISODE_NUM):
         done = False
         env.reset()
-        episode_reward = 0
-        episode_suc_count = 0
-        episode_task_count = 0
+        acc_reward = 0
+        acc_suc_num = 0
+        acc_task_num = 0
+        acc_responseTime = 0
+        acc_loss = 0
         steps = 0
+        update_steps = 0
 
         while not done:
             raw_mats = env.get_state()
             state, idx_col = process_state(raw_mats) if steps == 0 else (next_state, next_idx_col)
             raw_action = ddpg.policy_net.get_action(state)
             action = convert_action(raw_action, idx_col)
-            reward, (srl, success_num) = env.take_action(action)
+            reward, (task_num, suc_num, responseTime) = env.take_action(action)
             env.step()
             next_raw_mats = env.get_state()
             next_state, next_idx_col = process_state(next_raw_mats)
@@ -55,10 +62,13 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
 
             if len(ddpg.replay_buffer) > batch_size:
                 ddpg.ddpg_update(batch_size, gamma = GAMMA)
+                update_steps += 1
+                acc_loss += ddpg.get_loss()
 
-            episode_reward += reward
-            episode_task_count += len(srl)
-            episode_suc_count += success_num
+            acc_reward += reward
+            acc_task_num += task_num
+            acc_suc_num += suc_num
+            acc_responseTime += responseTime
 
             # print('step {}, reward {:.2f}'.format(steps, reward))
 
@@ -66,37 +76,63 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
 
             # if steps % 100 == 0:
 
-        print('Episode {}, accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio {:.2f}'.format(episode, episode_reward, episode_reward/steps, episode_suc_count/episode_task_count))
-        reward_list.append(episode_reward)
+        avg_reward = acc_reward/steps
+        avg_loss = acc_loss/update_steps if update_steps else 0
+        avg_suc_ratio = acc_suc_num/acc_task_num
+        avg_responseTime = acc_responseTime / acc_task_num
+        
+        print('Episode {}, accumulated reward {:.2f}, avg reward {:.2f}, avg loss {:.2f}, avg suc ratio {:.2f}, avg response time {:.2f}'.format(
+            episode, acc_reward, avg_reward, avg_loss, avg_suc_ratio, avg_responseTime))
+        
+        for key in results.keys():
+            results[key].append(eval(key))
     
     torch.save(ddpg.policy_net, model_saving_path)
-    return reward_list #, env.system_log
+    return results
 
 
-def test(policy_net_path, episode_ts=EPISODE_MAX_TS):
+def test(policy_net_path, test_episode_num, episode_ts=EPISODE_MAX_TS):
     policy_net = torch.load(policy_net_path)
-
     env = C_V2X(episode_ts)
-    done = False
-    env.reset()
-    episode_reward = 0
-    episode_suc_count = 0
-    episode_task_count = 0
-    steps = 0
 
-    while not done:
-        state, idx_col = process_state(env.get_state())
-        raw_action = policy_net.get_action(state)
-        action = convert_action(raw_action, idx_col)
-        reward, (srl, success_num) = env.take_action(action)
-        env.step()
-        done = env.get_done()
+    results = {
+        'avg_reward': [],
+        'avg_suc_ratio': [],
+        'avg_responseTime': [],
+    }
 
-        episode_reward += reward
-        episode_task_count += len(srl)
-        episode_suc_count += success_num
+    for episode in range(test_episode_num):
+        done = False
+        env.reset()
+        acc_reward = 0
+        acc_suc_num = 0
+        acc_task_num = 0
+        acc_responseTime = 0
+        steps = 0
 
-        steps += 1
-    
-    print('Testing: accumulated reward {:.2f}, averaged reward {:.2f}, averaged success ratio {:.2f}'.format(episode_reward, episode_reward/steps, episode_suc_count/episode_task_count))
-    return episode_reward
+        while not done:
+            state, idx_col = process_state(env.get_state())
+            raw_action = policy_net.get_action(state)
+            action = convert_action(raw_action, idx_col)
+            reward, (task_num, suc_num, responseTime) = env.take_action(action)
+            env.step()
+            done = env.get_done()
+
+            acc_reward += reward
+            acc_task_num += task_num
+            acc_suc_num += suc_num
+            acc_responseTime += responseTime
+
+            steps += 1
+
+        avg_reward = acc_reward/steps
+        avg_suc_ratio = acc_suc_num/acc_task_num
+        avg_responseTime = acc_responseTime / acc_task_num
+        
+        print('Testing {}: avg reward {:.2f}, avg success ratio {:.2f}, avg response time {:.2f}'.format(
+            episode, avg_reward, avg_suc_ratio, avg_responseTime))
+        
+        for key in results.keys():
+            results[key].append(eval(key))
+
+    return results

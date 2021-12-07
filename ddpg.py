@@ -128,6 +128,8 @@ class DDPG:
         self.num_all_users_list = []
         self.num_selected_users_list = []
 
+        self
+
     def ddpg_update(self,
                     batch_size,
                     gamma=0.05,
@@ -153,6 +155,8 @@ class DDPG:
         value = self.value_net(state, action)
         value_loss = self.value_criterion(value, expected_value.detach())
 
+        self.loss_item = value_loss.item()
+
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         self.policy_optimizer.step()
@@ -170,3 +174,6 @@ class DDPG:
             target_param.data.copy_(
                 target_param.data * (1.0 - soft_tau) + param.data * soft_tau
             )
+
+    def get_loss(self):
+        return self.loss_item
