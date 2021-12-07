@@ -8,9 +8,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 use_cuda = torch.cuda.is_available()
 print("GPU is {}available".format('' if use_cuda else 'not '))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda" if use_cuda else "cpu")
 
 class ReplayBuffer:
