@@ -262,6 +262,7 @@ class C_V2X:
         _, vehi_constraintime_mat, _, res_mat, mes_mat = self.state
 
         reward_list = []
+        responseTime_list = []
         
         ###############
         # for debugging
@@ -276,6 +277,7 @@ class C_V2X:
         cloud_count = 0
         cloud_succount = 0
         vehi_coll_count = 0
+        ###############
 
         decisions = actions[:,0].astype(int)
         ratios = actions[:,-4:]
@@ -363,8 +365,8 @@ class C_V2X:
             
             else:
                 total_time = tran_req * CLOUD_MULTIPLIER
-                comm_time = 'cloud'
-                comp_time = 'cloud'
+                comm_time = total_time
+                comp_time = 0
                 constrain_time = ddl
 
                 cloud_count += 1
@@ -379,6 +381,10 @@ class C_V2X:
             reward_list.append(10 if if_success else 0)
             if not if_success:
                 vehi.handle_task_failed()
+                
+                responseTime_list.append(ddl)
+            else:
+                responseTime_list.append(total_time)
 
             time_list.append((idx, constrain_time, total_time, comm_time, comp_time))
             task_list.append((idx, comp_req, tran_req, decision))
@@ -398,8 +404,12 @@ class C_V2X:
             'vehi collision count': vehi_coll_count,
         }
         
-        averaged_reward = sum(reward_list)/len(reward_list) if len(reward_list) else 0
-        return averaged_reward, (reward_list, len(list(filter(lambda x: x>0, reward_list))))
+        task_num = len(reward_list)
+        averaged_reward = sum(reward_list)/task_num if task_num else 0
+        suc_num = len(list(filter(lambda x: x>0, reward_list)))
+        total_responseTime = sum(responseTime_list)
+
+        return averaged_reward, (task_num, suc_num, total_responseTime)
     
     def step(self):
         self.time += TIMESLICE
