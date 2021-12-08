@@ -25,7 +25,7 @@ def convert_action(raw_actions, idx_col):
     ratio = tanh_to_01(actions[:,DECISION_DIM:])
     return np.concatenate((decision, ratio), axis=1)
 
-def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
+def train(model_handler, result_handler, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
     env = C_V2X(episode_ts)
     ddpg = DDPG(env, STATE_DIM, ACTION_DIM, HIDDEN_DIM)
 
@@ -86,12 +86,15 @@ def train(model_saving_path, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZ
         
         for key in results.keys():
             results[key].append(eval(key))
+        
+        if episode == 0:
+            result_handler(results)
     
-    torch.save(ddpg.policy_net, model_saving_path)
-    return results
+    model_handler(ddpg.policy_net, torch.save)
+    result_handler(results)
 
 
-def test(policy_net_path, test_episode_num, episode_ts=EPISODE_MAX_TS):
+def test(policy_net_path, test_episode_num, result_handler, episode_ts=EPISODE_MAX_TS):
     policy_net = torch.load(policy_net_path)
     env = C_V2X(episode_ts)
 
@@ -135,4 +138,4 @@ def test(policy_net_path, test_episode_num, episode_ts=EPISODE_MAX_TS):
         for key in results.keys():
             results[key].append(eval(key))
 
-    return results
+    result_handler(results)
