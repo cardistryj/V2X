@@ -13,8 +13,17 @@ for hp in filter(lambda x: not x.startswith('_'), dir(config_lock)):
     param = eval('{}.{}'.format(config.__name__, hp))
     if not param == param_lock:
         hyperparams[hp] = param
-params_str = json.dumps(hyperparams, indent=4)
-hash_str = str(hash(params_str))
+
+num_params_changed = len(hyperparams)
+if num_params_changed == 0:
+    dir_name = 'standard'
+elif num_params_changed == 1:
+    dir_name = ''
+    for key, value in hyperparams.items():
+        dir_name += '{}={}'.format(key, value)
+else:
+    params_str = json.dumps(hyperparams, indent=4)
+    dir_name = str(hash(params_str))
 
 time_now = time.strftime('%Y_%m_%d_%H%M%S', time.localtime())
 
@@ -28,8 +37,8 @@ branch_name = Repo('.').active_branch.name
 MODEL_POLICY_BRANCH_DIR = os.path.join(MODEL_POLICY_ROOT_PATH, branch_name)
 RESULT_BRANCH_DIR = os.path.join(RESULT_ROOT_PATH, branch_name)
 
-MODEL_POLICY_DIR = os.path.join(MODEL_POLICY_BRANCH_DIR, hash_str)
-RESULT_DIR = os.path.join(RESULT_BRANCH_DIR, hash_str)
+MODEL_POLICY_DIR = os.path.join(MODEL_POLICY_BRANCH_DIR, dir_name)
+RESULT_DIR = os.path.join(RESULT_BRANCH_DIR, dir_name)
 
 ##### 写入配置文件
 MODEL_CONFIG_FILE_PATH = os.path.join(MODEL_POLICY_DIR, 'params_diff.conf')
@@ -42,8 +51,9 @@ if not os.path.isdir(RESULT_BRANCH_DIR):
     os.mkdir(RESULT_BRANCH_DIR)
 if not os.path.isdir(RESULT_DIR):
     os.mkdir(RESULT_DIR)
-with open(RESULT_CONFIG_FILE_PATH, 'w') as f:
-    f.write(params_str)
+if num_params_changed > 1:
+    with open(RESULT_CONFIG_FILE_PATH, 'w') as f:
+        f.write(params_str)
 
 def get_argv(position):
     return sys.argv[position] if len(sys.argv) > position else ''
@@ -60,8 +70,9 @@ def model_saver_cover(model_path):
             os.mkdir(MODEL_POLICY_BRANCH_DIR)
         if not os.path.isdir(MODEL_POLICY_DIR):
             os.mkdir(MODEL_POLICY_DIR)
-        with open(MODEL_CONFIG_FILE_PATH, 'w') as f:
-            f.write(params_str)
+        if num_params_changed > 1:
+            with open(MODEL_CONFIG_FILE_PATH, 'w') as f:
+                f.write(params_str)
         saver(model, model_path)
     return save_model
 
