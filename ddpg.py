@@ -94,7 +94,7 @@ class PolicyNetwork(nn.Module):
 
 
 class DDPG:
-    def __init__(self, env, state_dim, action_dim, hidden_dim):
+    def __init__(self, env, state_dim, action_dim, hidden_dim, replay_buffer_size):
         self.env = env
 
         self.state_dim = state_dim
@@ -121,8 +121,7 @@ class DDPG:
 
         self.value_criterion = nn.MSELoss()
 
-        self.replay_buffer_size = 100000
-        self.replay_buffer = ReplayBuffer(self.replay_buffer_size)
+        self.replay_buffer = ReplayBuffer(replay_buffer_size)
 
         self.batch_size = 64
         self.average_reward_list = []

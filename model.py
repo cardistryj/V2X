@@ -27,7 +27,7 @@ def convert_action(raw_actions, idx_col):
 
 def train(model_handler, result_handler, episode_ts = EPISODE_MAX_TS, batch_size = BATCH_SIZE):
     env = C_V2X(episode_ts)
-    ddpg = DDPG(env, STATE_DIM, ACTION_DIM, HIDDEN_DIM)
+    ddpg = DDPG(env, STATE_DIM, ACTION_DIM, HIDDEN_DIM, BUFFER_CAPACITY)
 
     results = {
         'avg_reward': [],
