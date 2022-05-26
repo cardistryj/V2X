@@ -140,7 +140,7 @@ class Station:
         self.cur_band = cur_band
     
     def get_cur_state(self):
-        return self.cur_band, self.cur_cap
+        return self.cur_band if self.cur_band > 0 else 0, self.cur_cap if self.cur_cap > 0 else 0
     
     def serve_task(self, cap_req, band_req, fin_time):
         self.cur_tasks.append((cap_req, band_req, fin_time))
