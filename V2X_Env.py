@@ -284,7 +284,7 @@ class C_V2X:
         for ES_idx in range(VEHICLE_NUM, VEHICLE_NUM + RES_NUM + MES_NUM):
             idx = decisions == ES_idx
             cor_ratios = ratios[idx, :]
-            if not len(cor_ratios):
+            if len(cor_ratios):
                 cor_ratios /= np.sum(cor_ratios, axis=0) 
 
         for idx, (vehi, decision, ratio) in enumerate(zip(self.vehicles, decisions, ratios)):
